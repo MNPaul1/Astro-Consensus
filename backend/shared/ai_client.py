@@ -16,10 +16,15 @@ MODEL_PRIORITY = [
 ]
 DEFAULT_MAX_COMPLETION_TOKENS = 1800
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+LAST_USED_MODEL = None
 
 
 class AIClientError(RuntimeError):
     pass
+
+
+def get_last_used_model() -> Optional[str]:
+    return LAST_USED_MODEL
 
 
 def load_local_env() -> None:
@@ -139,6 +144,7 @@ def request_model(
 
 
 def ask_ai(prompt: str, system_prompt: Optional[str] = None) -> str:
+    global LAST_USED_MODEL
     load_local_env()
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
@@ -158,7 +164,9 @@ def ask_ai(prompt: str, system_prompt: Optional[str] = None) -> str:
     retry_messages = []
     for model in model_order:
         try:
-            return request_model(model, messages, api_key)
+            response = request_model(model, messages, api_key)
+            LAST_USED_MODEL = model
+            return response
         except AIClientError as exc:
             message = str(exc)
             if message.startswith("MODEL_RETRY::"):

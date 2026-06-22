@@ -1,6 +1,6 @@
 import re
 
-from shared.ai_client import AIClientError, ask_ai
+from shared.ai_client import AIClientError, ask_ai, get_last_used_model
 from shared.evidence import (
     build_evidence,
     find_report_evidence_ids,
@@ -363,6 +363,7 @@ Draft report:
         "system": request.system,
         "report_type": request.report_type,
         "forecast_period": period,
+        "ai_model": get_last_used_model(),
         "themes": extract_themes(request.system, data, request.report_type),
         "evidence": evidence,
         "data": data,

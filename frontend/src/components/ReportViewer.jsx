@@ -96,6 +96,13 @@ export default function ReportViewer({ reportData }) {
             {formatReportMarkdown(reportData.report)}
           </ReactMarkdown>
         </article>
+        {reportData.ai_model ? (
+          <div className="stage-reveal stage-reveal--6 mx-auto mt-2 flex max-w-4xl justify-end">
+            <p className="report-meta text-xs">
+              Report written by: <span>{reportData.ai_model}</span>
+            </p>
+          </div>
+        ) : null}
 
         <details className="stage-reveal stage-reveal--7 surface-card mx-auto mt-5 max-w-4xl rounded-xl border p-4">
           <summary className="cursor-pointer text-sm font-medium">

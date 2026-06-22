@@ -212,6 +212,15 @@ body::before {
     radial-gradient(circle at top, color-mix(in srgb, var(--accent) 7%, transparent), transparent 42%);
 }
 
+.report-meta {
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
+.report-meta span {
+  color: var(--text);
+}
+
 .report-prose__beam {
   position: absolute;
   inset: -2px auto auto -10%;
