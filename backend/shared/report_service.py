@@ -49,12 +49,16 @@ Writing standard:
   such as a planet moving through a sign, pressure building, support opening,
   or a shift unfolding. Do not sound coded or mechanical."""
 
+COMPACT_SYSTEM_PROMPT = """Write a detailed, coherent astrology or numerology reading from fixed evidence only.
+Do not invent chart facts. Keep the prose natural, selective, and grounded in lived experience.
+Use evidence IDs only for validation inside the draft. Avoid repetition and filler."""
+
 
 def format_evidence(evidence):
     return "\n".join(f"{evidence_id}: {value}" for evidence_id, value in evidence.items())
 
 
-def select_prompt_evidence(evidence):
+def select_prompt_evidence(evidence, focus_ids=None, compact=False):
     dated_ids = {
         match.group(0)
         for evidence_id in evidence
@@ -69,6 +73,10 @@ def select_prompt_evidence(evidence):
     transit_planets = ("MOON", "MERCURY", "VENUS", "MARS", "JUPITER", "SATURN")
     selected = {}
     for evidence_id, value in evidence.items():
+        if compact and focus_ids and evidence_id not in focus_ids:
+            match = re.search(r"\d{4}-\d{2}-\d{2}", evidence_id)
+            if not match:
+                continue
         match = re.search(r"\d{4}-\d{2}-\d{2}", evidence_id)
         if not match:
             selected[evidence_id] = value
@@ -77,6 +85,11 @@ def select_prompt_evidence(evidence):
             or evidence_id.endswith(transit_planets)
         ):
             selected[evidence_id] = value
+
+    if compact and focus_ids:
+        for evidence_id in focus_ids:
+            if evidence_id in evidence:
+                selected[evidence_id] = evidence[evidence_id]
     return selected
 
 
@@ -119,6 +132,15 @@ def sanitize_report_for_display(report):
 
 def should_polish_report(report):
     return len(report.split()) >= 220
+
+
+def is_request_too_large_error(error):
+    message = str(error).lower()
+    return (
+        "reduce the length of the messages or completion" in message
+        or "request too large for model" in message
+        or "token limit" in message
+    )
 
 
 def polish_report(report, request, request_id=None):
@@ -217,7 +239,7 @@ def extract_themes(system, data, report_type):
     ]
 
 
-def build_prompt(request, evidence, period, synthesis):
+def build_prompt(request, evidence, period, synthesis, compact=False):
     question = request.question or f"Create my {request.report_type} report."
     if request.report_type == "personality":
         report_structure = """## Core Pattern
@@ -269,8 +291,28 @@ immediate priority."""
             f"Discuss only the supplied {request.system} system. Do not introduce "
             "or compare any other divination system."
         )
-    evidence_text = format_evidence(select_prompt_evidence(evidence))
+    focused_ids = synthesis.get("top_evidence_ids", [])[:6]
+    evidence_text = format_evidence(
+        select_prompt_evidence(evidence, focus_ids=focused_ids, compact=compact)
+    )
     synthesis_text = format_synthesis_for_prompt(synthesis, evidence)
+    if compact:
+        return f"""Write a detailed {request.report_type} {request.system} reading for {request.name}.
+
+Period: {period}
+Question: {question}
+Use the strongest 2 to 4 themes only. Answer directly. Stay specific, readable, and non-repetitive.
+Explain what may happen, how it may feel, where it may show up, and what the person can do.
+Keep technical chart jargon mostly out of the prose. Use Markdown headings.
+Use this structure exactly:
+{report_structure}
+
+Briefing:
+{synthesis_text}
+
+Evidence:
+{evidence_text}
+"""
     return f"""Create a {request.report_type} {request.system} report for {request.name}.
 
 Forecast period: {period}
@@ -370,12 +412,23 @@ def generate_report(request: ReportRequest, request_id=None):
     evidence = build_evidence(request.system, data, request.report_type)
     synthesis = build_synthesis(request.system, data, evidence, request.report_type, period)
     prompt = build_prompt(request, evidence, period, synthesis)
-    report = ask_ai(
-        prompt,
-        system_prompt=SYSTEM_PROMPT,
-        request_id=request_id,
-        stage="Reading the chart and writing your report",
-    )
+    try:
+        report = ask_ai(
+            prompt,
+            system_prompt=SYSTEM_PROMPT,
+            request_id=request_id,
+            stage="Reading the chart and writing your report",
+        )
+    except AIClientError as exc:
+        if not is_request_too_large_error(exc):
+            raise
+        compact_prompt = build_prompt(request, evidence, period, synthesis, compact=True)
+        report = ask_ai(
+            compact_prompt,
+            system_prompt=COMPACT_SYSTEM_PROMPT,
+            request_id=request_id,
+            stage="Compressing instructions and rewriting the report",
+        )
     try:
         validate_report_evidence(report, evidence)
     except AIClientError:

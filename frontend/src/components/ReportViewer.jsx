@@ -355,6 +355,9 @@ export default function ReportViewer({ reportData, loading, loadingStatus, onQue
                     </div>
                     <p className="insight-card__copy">{area.summary}</p>
                     <p className="muted-text mt-2 text-xs">{confidenceMeaning(area.confidence)}</p>
+                    <p className="muted-text mt-3 text-xs">
+                      Key signals behind this theme:
+                    </p>
                     <div className="insight-signal-list">
                       {area.signals?.map((signal) => (
                         <div key={`${area.title}-${signal.evidence_id}`} className="insight-signal">
