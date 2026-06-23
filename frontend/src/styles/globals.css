@@ -86,10 +86,394 @@ body::before {
   transition: background-color 180ms ease, color 180ms ease;
 }
 
+.header-shell {
+  width: 100%;
+  padding: 0.85rem 1.25rem;
+}
+
 .app-header,
 .app-sidebar {
   background: var(--surface-soft);
   border-color: var(--border);
+}
+
+.header-command {
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 10%, transparent), transparent 32%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-soft) 90%, transparent));
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.header-action {
+  padding: 0.62rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 700;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease;
+}
+
+.header-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+
+.header-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.header-action--active {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.header-status {
+  color: var(--muted);
+  font-size: 0.77rem;
+}
+
+.header-question {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, transparent), color-mix(in srgb, var(--surface-soft) 92%, transparent));
+}
+
+.header-question--popover {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  box-shadow: 0 18px 45px color-mix(in srgb, var(--background) 35%, transparent);
+}
+
+.header-question__eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+
+.vedic-chart__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.vedic-chart__title {
+  margin: 0.3rem 0 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.vedic-chart__copy {
+  max-width: 22rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.vedic-chart__layer-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-bottom: 1rem;
+}
+
+.vedic-chart__frame {
+  position: relative;
+  width: min(100%, 760px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--accent) 12%, transparent), transparent 32%),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 98%, transparent), color-mix(in srgb, var(--surface-soft) 94%, transparent));
+}
+
+.vedic-chart__aurora {
+  position: absolute;
+  inset: -18%;
+  background:
+    radial-gradient(circle at 30% 35%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 30%),
+    radial-gradient(circle at 70% 68%, color-mix(in srgb, var(--glow-primary) 100%, transparent), transparent 28%);
+  opacity: 0.85;
+  animation: vedic-aurora-spin 20s linear infinite;
+  pointer-events: none;
+}
+
+.vedic-chart__spotlight {
+  position: absolute;
+  width: 11rem;
+  height: 11rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent) 18%, transparent) 0, transparent 68%);
+  transform: translate(-50%, -50%);
+  transition: left 320ms ease, top 320ms ease, opacity 220ms ease;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.vedic-chart__lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.vedic-chart__lines rect,
+.vedic-chart__lines line {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 34%, var(--border));
+  stroke-width: 0.75;
+}
+
+.vedic-chart__center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.vedic-chart__center strong {
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.vedic-chart__ayanamsa,
+.vedic-chart__center span:last-child {
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.vedic-house {
+  position: absolute;
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  width: clamp(82px, 11vw, 122px);
+  min-height: 72px;
+  padding: 0.6rem 0.65rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--background) 12%, transparent);
+  backdrop-filter: blur(10px);
+  text-align: left;
+  transition:
+    transform 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+  cursor: pointer;
+}
+
+.vedic-house--asc {
+  border-color: var(--accent-border);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.vedic-house:hover,
+.vedic-house:focus-visible,
+.vedic-house--active {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow:
+    0 16px 38px color-mix(in srgb, var(--background) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+  transform: translate(-50%, -50%) translateY(-3px);
+}
+
+.vedic-house__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.vedic-house__number {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.vedic-house__sign {
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.vedic-house__planets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.22rem;
+}
+
+.vedic-house__planet {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.45rem;
+  font-size: 0.74rem;
+}
+
+.vedic-house__planet-name {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.vedic-house__planet-degree,
+.vedic-house__empty {
+  color: var(--muted);
+}
+
+.vedic-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1.1rem;
+}
+
+.vedic-chart__reading {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.vedic-chart__reading-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.vedic-chart__reading-title {
+  margin: 0.25rem 0 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+}
+
+.vedic-chart__reading-copy {
+  margin: 0.85rem 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.vedic-chart__reading-planets {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.vedic-chart__reading-planet,
+.vedic-chart__reading-empty {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface-soft) 80%, transparent);
+}
+
+.vedic-chart__reading-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.vedic-chart__reading-planet strong {
+  color: var(--text);
+}
+
+.vedic-chart__reading-planet span,
+.vedic-chart__reading-empty {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.vedic-chart__reading-detail {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.vedic-chart__reading-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.vedic-chart__yogas {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.vedic-chart__yoga-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+}
+
+.vedic-chart__yoga-card strong {
+  color: var(--text);
+}
+
+.vedic-chart__yoga-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+@keyframes vedic-aurora-spin {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+
+  50% {
+    transform: rotate(180deg) scale(1.05);
+  }
+
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
 }
 
 .surface-card,
@@ -116,6 +500,175 @@ body::before {
   );
   background-clip: text;
   color: transparent;
+}
+
+.cosmic-loader {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.cosmic-loader__scene {
+  position: relative;
+  width: min(100%, 360px);
+  height: 240px;
+  margin: 0 auto;
+}
+
+.cosmic-loader__sun {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 78px;
+  height: 78px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #fde68a 0, #f59e0b 58%, rgba(245, 158, 11, 0.24) 100%);
+  box-shadow:
+    0 0 30px rgba(245, 158, 11, 0.45),
+    0 0 80px rgba(245, 158, 11, 0.18);
+  animation: loader-pulse 2.6s ease-in-out infinite;
+}
+
+.cosmic-loader__orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+}
+
+.cosmic-loader__orbit--one {
+  width: 140px;
+  height: 140px;
+  animation: loader-spin 9s linear infinite;
+}
+
+.cosmic-loader__orbit--two {
+  width: 200px;
+  height: 200px;
+  animation: loader-spin 13s linear infinite reverse;
+}
+
+.cosmic-loader__orbit--three {
+  width: 260px;
+  height: 260px;
+  animation: loader-spin 18s linear infinite;
+}
+
+.cosmic-loader__planet {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+}
+
+.cosmic-loader__planet--gold {
+  background: #fcd34d;
+  box-shadow: 0 0 18px rgba(252, 211, 77, 0.4);
+}
+
+.cosmic-loader__planet--violet {
+  background: #a78bfa;
+  box-shadow: 0 0 18px rgba(167, 139, 250, 0.35);
+}
+
+.cosmic-loader__planet--blue {
+  background: #60a5fa;
+  box-shadow: 0 0 18px rgba(96, 165, 250, 0.35);
+}
+
+.cosmic-loader__copy {
+  text-align: center;
+}
+
+.cosmic-loader__title {
+  margin: 0.35rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.cosmic-loader__text {
+  max-width: 36rem;
+  margin: 0.85rem auto 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.cosmic-loader__status {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.cosmic-loader__events {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.cosmic-loader__event {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  align-items: start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--surface-soft) 80%, transparent);
+}
+
+.cosmic-loader__event p {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.cosmic-loader__event-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  margin-top: 0.25rem;
+}
+
+.cosmic-loader__event-dot--stage {
+  background: #fcd34d;
+}
+
+.cosmic-loader__event-dot--attempt {
+  background: #60a5fa;
+}
+
+.cosmic-loader__event-dot--success {
+  background: #34d399;
+}
+
+.cosmic-loader__event-dot--failed {
+  background: #f87171;
+}
+
+@keyframes loader-spin {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes loader-pulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  50% {
+    transform: translate(-50%, -50%) scale(1.06);
+  }
 }
 
 .theme-toggle,
@@ -387,6 +940,288 @@ body::before {
 
 .stage-reveal--8 {
   animation-delay: 530ms;
+}
+
+.stage-reveal--9 {
+  animation-delay: 600ms;
+}
+
+.insight-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.insight-eyebrow,
+.insight-card__eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.insight-title {
+  margin: 0.4rem 0 0;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.confidence-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.confidence-pill--high {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.28);
+  color: #10b981;
+}
+
+.confidence-pill--moderate {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.confidence-pill--speculative {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.24);
+  color: #60a5fa;
+}
+
+.timeline-grid,
+.insight-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.timeline-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.timeline-card,
+.insight-card {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 88%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
+}
+
+.timeline-card {
+  padding: 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+}
+
+.timeline-label,
+.timeline-window,
+.timeline-confidence {
+  margin: 0;
+}
+
+.timeline-label {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.timeline-focus {
+  margin: 0.45rem 0;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.timeline-window,
+.timeline-confidence {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.insight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.insight-summary {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.insight-summary::-webkit-details-marker {
+  display: none;
+}
+
+.insight-card__confidence {
+  margin: 0.35rem 0 0;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.insight-summary__hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.insight-card__copy {
+  margin: 1rem 0 0;
+  color: var(--muted);
+  line-height: 1.75;
+}
+
+.insight-signal-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.insight-signal {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.8rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.9rem;
+}
+
+.insight-signal__content {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.insight-signal p {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.6;
+}
+
+.insight-signal__evidence {
+  color: var(--muted) !important;
+  font-size: 0.82rem;
+}
+
+.system-insights__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.system-insights__title {
+  margin: 0.45rem 0 0;
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.system-insights__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.system-insights__method {
+  display: grid;
+  gap: 1rem;
+}
+
+.system-insights__copy {
+  margin: 0;
+  color: var(--text);
+  line-height: 1.8;
+}
+
+.system-insights__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.system-insights__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(16rem, 0.8fr);
+  gap: 1rem;
+}
+
+.system-insights__table,
+.system-insights__aside {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.system-insights__row,
+.system-insights__card {
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-soft) 88%, transparent), color-mix(in srgb, var(--surface) 96%, transparent));
+}
+
+.system-insights__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.system-insights__label,
+.system-insights__note,
+.system-insights__card-title,
+.system-insights__card-copy {
+  margin: 0;
+}
+
+.system-insights__label,
+.system-insights__card-title {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.system-insights__note,
+.system-insights__card-copy {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.system-insights__value {
+  color: var(--accent);
+  text-align: right;
+  line-height: 1.4;
+}
+
+.question-switcher {
+  display: grid;
+  gap: 1rem;
+}
+
+.question-switcher__group {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.question-switcher__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.question-switcher__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
 }
 
 .planetary-map {
@@ -1006,8 +1841,44 @@ body::before {
 }
 
 @media (max-width: 900px) {
+  .header-shell {
+    padding-left: 1rem;
+    padding-right: 1rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-command {
+    padding: 0.85rem;
+  }
+
+  .timeline-grid,
+  .insight-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .system-insights__header,
+  .system-insights__row,
+  .header-question {
+    grid-template-columns: 1fr;
+  }
+
+  .system-insights__layout {
+    grid-template-columns: 1fr;
+  }
+
   .planetary-map__layout {
     grid-template-columns: 1fr;
+  }
+
+  .vedic-house {
+    width: clamp(72px, 18vw, 102px);
+    min-height: 64px;
+    padding: 0.5rem 0.55rem;
+  }
+
+  .vedic-house__planet {
+    font-size: 0.68rem;
   }
 
   .orbit-system {
@@ -1032,6 +1903,31 @@ body::before {
 }
 
 @media (max-width: 640px) {
+  .vedic-chart__frame {
+    aspect-ratio: 1 / 1.12;
+  }
+
+  .vedic-house {
+    width: clamp(62px, 19vw, 88px);
+    min-height: 54px;
+    gap: 0.3rem;
+    padding: 0.4rem 0.45rem;
+    border-radius: 0.85rem;
+  }
+
+  .vedic-house__number,
+  .vedic-house__sign,
+  .vedic-house__planet,
+  .vedic-chart__center strong,
+  .vedic-chart__ayanamsa,
+  .vedic-chart__center span:last-child {
+    font-size: 0.62rem;
+  }
+
+  .vedic-chart__center {
+    gap: 0.1rem;
+  }
+
   .planet-node {
     min-width: 5.7rem;
     padding: 0.55rem 0.58rem;

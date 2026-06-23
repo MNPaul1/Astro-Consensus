@@ -1,5 +1,7 @@
-from calendar import monthrange
 from datetime import date, datetime, time, timedelta, timezone
+
+MONTHLY_FORECAST_DAYS = 30
+MONTHLY_SAMPLE_OFFSETS = (0, 5, 10, 15, 20, 25, 29)
 
 
 def forecast_period(report_type):
@@ -12,10 +14,10 @@ def forecast_period(report_type):
             f"{(today + timedelta(days=6)).strftime('%B %d, %Y')}"
         )
     if report_type == "monthly":
-        last_day = monthrange(today.year, today.month)[1]
+        month_end = today + timedelta(days=MONTHLY_FORECAST_DAYS - 1)
         return (
             f"{today.strftime('%B %d, %Y')} to "
-            f"{date(today.year, today.month, last_day).strftime('%B %d, %Y')}"
+            f"{month_end.strftime('%B %d, %Y')}"
         )
     if report_type == "yearly":
         return f"{today.strftime('%B %d, %Y')} to December 31, {today.year}"
@@ -29,14 +31,7 @@ def forecast_dates(report_type):
     elif report_type == "weekly":
         dates = [today + timedelta(days=offset) for offset in range(7)]
     elif report_type == "monthly":
-        last_day = date(today.year, today.month, monthrange(today.year, today.month)[1])
-        dates = []
-        current = today
-        while current <= last_day:
-            dates.append(current)
-            current += timedelta(days=7)
-        if dates[-1] != last_day:
-            dates.append(last_day)
+        dates = [today + timedelta(days=offset) for offset in MONTHLY_SAMPLE_OFFSETS]
     else:
         dates = [today]
         dates.extend(date(today.year, month, 1) for month in range(today.month + 1, 13))

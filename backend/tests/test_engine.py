@@ -106,7 +106,9 @@ def test_numerology_request_does_not_require_astrology_fields():
 def test_forecast_sampling_matches_report_period():
     assert len(forecast_dates("daily")) == 1
     assert len(forecast_dates("weekly")) == 7
-    assert len(forecast_dates("monthly")) >= 2
+    monthly_dates = forecast_dates("monthly")
+    assert len(monthly_dates) == 7
+    assert (monthly_dates[-1].date() - monthly_dates[0].date()).days == 29
     assert len(forecast_dates("yearly")) >= 2
 
 
@@ -147,7 +149,7 @@ def test_report_repairs_missing_citations(monkeypatch):
     result = generate_report(request)
     assert len(calls) == 2
     assert "An uncited draft." in calls[1]
-    assert result["report"].endswith("[N-CORE-LIFE-PATH].")
+    assert result["report"] == "A repaired draft."
 
 
 def test_report_adds_evidence_basis_when_repair_omits_citations(monkeypatch):
@@ -170,8 +172,9 @@ def test_report_adds_evidence_basis_when_repair_omits_citations(monkeypatch):
     result = generate_report(request)
 
     assert len(calls) == 2
-    assert "### Evidence basis" in result["report"]
-    assert "[N-CORE-LIFE-PATH]" in result["report"]
+    assert "### Evidence basis" not in result["report"]
+    assert "[N-CORE-LIFE-PATH]" not in result["report"]
+    assert result["report"] == "A grounded interpretation without citation formatting."
 
 
 def test_report_survives_failed_citation_repair(monkeypatch):
@@ -196,7 +199,7 @@ def test_report_survives_failed_citation_repair(monkeypatch):
     result = generate_report(request)
 
     assert result["report"].startswith("A generated report")
-    assert "[N-CORE-LIFE-PATH]" in result["report"]
+    assert "[N-CORE-LIFE-PATH]" not in result["report"]
 
 
 def test_report_strips_unsupported_citations_and_recovers(monkeypatch):
@@ -222,7 +225,29 @@ def test_report_strips_unsupported_citations_and_recovers(monkeypatch):
 
     assert "[W-ASC-10]" not in result["report"]
     assert "[W-ASPECT-99]" not in result["report"]
-    assert "[N-CORE-LIFE-PATH]" in result["report"]
+    assert "[N-CORE-LIFE-PATH]" not in result["report"]
+
+
+def test_report_returns_v2_synthesis_fields(monkeypatch):
+    monkeypatch.setattr(
+        "shared.report_service.ask_ai",
+        lambda _prompt, system_prompt=None: "Grounded [N-CORE-LIFE-PATH] [N-CORE-EXPRESSION]",
+    )
+    request = ReportRequest(
+        name="Test User",
+        year=1995,
+        month=4,
+        day=12,
+        system="numerology",
+        report_type="weekly",
+    )
+
+    result = generate_report(request)
+
+    assert result["confidence"] in {"high", "moderate", "speculative"}
+    assert result["insight_map"]
+    assert result["insight_map"][0]["signals"]
+    assert result["timing_windows"]
 
 
 def test_consensus_uses_one_ai_call(monkeypatch):

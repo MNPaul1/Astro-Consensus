@@ -1,9 +1,11 @@
 import os
 from pathlib import Path
+import re
 from typing import Optional
 
 import requests
 from dotenv import load_dotenv
+from shared.ai_progress import log_model_attempt, log_model_result, update_stage
 
 
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -38,6 +40,21 @@ def parse_model_priority() -> list[str]:
 
     models = [value.strip() for value in configured.split(",") if value.strip()]
     return models or MODEL_PRIORITY[:]
+
+
+def clean_model_response(text: str) -> str:
+    cleaned = text.strip()
+    cleaned = re.sub(r"<think>.*?</think>", "", cleaned, flags=re.DOTALL | re.IGNORECASE)
+    cleaned = re.sub(r"</?draft>", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^\s*Draft:\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"^\s*(thinking|reasoning)\s*:.*?$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE | re.MULTILINE,
+    )
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 def build_messages(prompt: str, system_prompt: Optional[str]) -> list[dict[str, str]]:
@@ -137,13 +154,20 @@ def request_model(
             "The model response reached its token limit. Increase GROQ_MAX_TOKENS."
         )
 
+    text = clean_model_response(text or "")
+
     if not text or not text.strip():
         raise AIClientError(f"The cloud model {model} returned an empty response.")
 
     return text.strip()
 
 
-def ask_ai(prompt: str, system_prompt: Optional[str] = None) -> str:
+def ask_ai(
+    prompt: str,
+    system_prompt: Optional[str] = None,
+    request_id: Optional[str] = None,
+    stage: Optional[str] = None,
+) -> str:
     global LAST_USED_MODEL
     load_local_env()
     api_key = os.getenv("GROQ_API_KEY")
@@ -161,17 +185,34 @@ def ask_ai(prompt: str, system_prompt: Optional[str] = None) -> str:
         model_order.append(explicit_model)
     model_order.extend(model for model in fallback_models if model != explicit_model)
 
+    if request_id and stage:
+        update_stage(request_id, stage)
+    print(f"[AI] Model order for this request: {', '.join(model_order)}")
+
     retry_messages = []
     for model in model_order:
         try:
+            if request_id:
+                log_model_attempt(request_id, model)
+            print(f"[AI] Trying model: {model}")
             response = request_model(model, messages, api_key)
             LAST_USED_MODEL = model
+            if request_id:
+                log_model_result(request_id, model, "success")
+            print(f"[AI] Model succeeded: {model}")
             return response
         except AIClientError as exc:
             message = str(exc)
             if message.startswith("MODEL_RETRY::"):
-                retry_messages.append(message.split("::", 2)[-1])
+                retry_reason = message.split("::", 2)[-1]
+                retry_messages.append(retry_reason)
+                if request_id:
+                    log_model_result(request_id, model, "failed", retry_reason)
+                print(f"[AI] Model failed: {model} | reason: {retry_reason}")
                 continue
+            if request_id:
+                log_model_result(request_id, model, "failed", message)
+            print(f"[AI] Model failed permanently: {model} | reason: {message}")
             raise
 
     attempted = ", ".join(model_order)
@@ -179,6 +220,10 @@ def ask_ai(prompt: str, system_prompt: Optional[str] = None) -> str:
         retry_messages[-1]
         if retry_messages
         else "All configured cloud models were unavailable."
+    )
+    print(
+        "[AI] All configured models failed "
+        f"| attempted: {attempted} | last error: {details}"
     )
     raise AIClientError(
         f"All configured cloud models hit limits or capacity constraints. Attempted: {attempted}. Last error: {details}"

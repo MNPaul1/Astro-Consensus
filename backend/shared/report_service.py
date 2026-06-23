@@ -8,6 +8,7 @@ from shared.evidence import (
 )
 from shared.forecast import forecast_dates, forecast_period
 from shared.models.birth_data import ReportRequest
+from shared.synthesis import build_synthesis, format_synthesis_for_prompt
 from systems.numerology.engines.numerology_engine import calculate_numerology
 from systems.vedic.engines.vedic_engine import calculate_vedic_chart
 from systems.western.engines.western_engine import calculate_western_chart
@@ -43,7 +44,10 @@ Writing standard:
 - Present the reading as reflective tradition and personal guidance, not as
   scientific proof or absolute certainty.
 - Write with confidence, specificity, and clean flow when the evidence supports
-  it."""
+  it.
+- When transit or timing evidence exists, translate it into natural language
+  such as a planet moving through a sign, pressure building, support opening,
+  or a shift unfolding. Do not sound coded or mechanical."""
 
 
 def format_evidence(evidence):
@@ -102,11 +106,22 @@ def strip_unsupported_citations(report, evidence):
     return cleaned.strip()
 
 
+def sanitize_report_for_display(report):
+    cleaned = re.sub(r"\s*\[([A-Z][A-Z0-9-]+)\]", "", report)
+    cleaned = re.sub(r"</?draft>", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^\s*Draft:\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\n+### Evidence basis\n(?:[^\n]*\n?)*$", "", cleaned, flags=re.MULTILINE)
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
+    cleaned = re.sub(r" +([,.;:!?])", r"\1", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
 def should_polish_report(report):
-    return len(report.split()) >= 250
+    return len(report.split()) >= 220
 
 
-def polish_report(report, request):
+def polish_report(report, request, request_id=None):
     polish_prompt = f"""Revise the draft below into a cleaner, more accurate, better-written reading.
 
 Rules:
@@ -116,6 +131,8 @@ Rules:
 - Make the writing feel cohesive, deliberate, and natural.
 - Do not add new factual claims, new evidence IDs, or new technical details.
 - Preserve existing valid citations where claims remain.
+- Keep the visible prose easy to read, detailed, and human. The evidence IDs
+  are only there for validation and should not dominate sentence rhythm.
 - If two nearby sentences say nearly the same thing, merge them into one stronger sentence.
 - Prefer clarity and precision over sounding mystical.
 - Return only the revised report.
@@ -130,7 +147,12 @@ Draft:
 {report}
 </draft>
 """
-    return ask_ai(polish_prompt, system_prompt=SYSTEM_PROMPT)
+    return ask_ai(
+        polish_prompt,
+        system_prompt=SYSTEM_PROMPT,
+        request_id=request_id,
+        stage="Polishing the final reading",
+    )
 
 
 def calculate_system_data(request):
@@ -195,39 +217,45 @@ def extract_themes(system, data, report_type):
     ]
 
 
-def build_prompt(request, evidence, period):
+def build_prompt(request, evidence, period, synthesis):
     question = request.question or f"Create my {request.report_type} report."
     if request.report_type == "personality":
         report_structure = """## Core Pattern
-A focused opening that names the person's central pattern in plain language and
-sets the tone for the whole reading.
+A developed opening that names the person's central pattern in plain language,
+explains what drives it internally, and sets the tone for the whole reading.
 ## Strengths to Use
-Three to four bullet points. Each one should name a real strength and where it
-becomes useful in life.
+Three to five bullet points. Each one should name a real strength, explain how
+it tends to show up, and where it becomes useful in life.
 ## Growth Edge
-One compact section on the main pattern to handle consciously and how it tends
-to show up in relationships, decisions, or self-perception.
+Two developed paragraphs on the main pattern to handle consciously, how it
+tends to show up in relationships, decisions, or self-perception, and what
+usually happens when it is ignored versus handled well.
 ## Life Themes
-Two well-developed paragraphs on the areas of life most shaped by this chart or
-numerology pattern. Each paragraph must cover a different life area or
-different consequence.
+Three developed paragraphs on the areas of life most shaped by this chart or
+numerology pattern. Each paragraph must cover a different life area,
+consequence, or emotional pattern.
 ## Practical Direction
-Three to four specific actions, habits, or mindset shifts, followed by a short
+Four to six specific actions, habits, or mindset shifts, followed by a short
 blockquote beginning with **Bottom line:**."""
     else:
         report_structure = """## At a Glance
-A direct answer to the user's question in a few crisp sentences.
+A direct answer to the user's question in one developed paragraph that already
+states the main opportunity, tension, or likely turning point.
 ## What May Unfold
-Three to four bullet points describing likely developments, turning points, or
-pressure areas. Each bullet must be distinct.
+Four to six bullet points describing likely developments, turning points,
+pressure areas, or helpful openings. Each bullet must be distinct and explain
+why it matters in lived experience.
 ## Where This Lands in Life
-Two well-developed paragraphs describing which life areas are being activated
-and what that can feel like in real life. The second paragraph must not repeat
-the first.
+Three developed paragraphs describing which life areas are being activated and
+what that can feel like in real life. Each paragraph must cover a different
+angle, such as inner state, outer events, relationships, work, money, or
+timing.
 ## Best Use of This Period
-Three to four specific, realistic actions the person can take.
+Four to six specific, realistic actions the person can take, each tied to the
+forecast rather than generic advice.
 ## Watch For
-One or two cautions phrased constructively, not fearfully.
+One developed paragraph or two compact paragraphs on cautions, phrased
+constructively, not fearfully.
 ## Your Next Move
 A short blockquote beginning with **Bottom line:** and giving the clearest
 immediate priority."""
@@ -242,20 +270,42 @@ immediate priority."""
             "or compare any other divination system."
         )
     evidence_text = format_evidence(select_prompt_evidence(evidence))
+    synthesis_text = format_synthesis_for_prompt(synthesis, evidence)
     return f"""Create a {request.report_type} {request.system} report for {request.name}.
 
 Forecast period: {period}
 User question: {question}
+Structured synthesis briefing:
+{synthesis_text}
 
 Requirements:
 - Base every specific claim on the evidence catalog below.
 - Before writing, silently identify the strongest 2 to 4 themes in the
   evidence. Build the report around those themes only.
+- Use the structured synthesis briefing as the spine of the reading.
+- Treat higher-confidence areas as more central than speculative ones.
+- When confidence is mixed or speculative, say so plainly instead of
+  overstating certainty.
+- Answer the user question directly, not indirectly. The report should feel like
+  a response to the question, not a generic reading with the question appended.
+- If the user question names a life area such as love, relationship, breakup,
+  marriage, career, work, money, relocation, family, or timing, prioritize the
+  evidence and life areas most relevant to that topic.
+- If the evidence does not strongly support the requested topic, say so
+  honestly and shift to the nearest supported pattern instead of forcing an
+  answer.
 - Focus on what the person is likely to experience, notice, or work through.
+- Give enough development that the user can understand not only what may
+  happen, but how it may feel, where it may show up, and what choices would
+  change the outcome.
 - Keep technical placements, aspect names, degree values, house numbers, and
   raw numerology values mostly out of the main prose.
 - Mention technical details only when they are truly necessary for clarity.
 - Let citations carry the proof; do not restate the catalog line by line.
+- Write in plain, natural language that a client can follow easily.
+- Where timing evidence is strong, describe it like a real astrologer would:
+  for example, Jupiter opening growth, Saturn applying pressure, Venus softening
+  tone, or Mercury bringing review, rather than reciting raw chart notation.
 - Distinguish strong patterns from mixed or limited evidence.
 - {system_requirement}
 - Cite evidence IDs exactly, for example [V-ASC] or [W-ASPECT-1].
@@ -277,15 +327,21 @@ Requirements:
   or overlapping observations.
 - Do not pad the report with synonyms, filler, repeated cautions, or generic
   spiritual language.
+- Do not let bracketed evidence IDs interrupt every sentence. Use them lightly
+  and place them where they are least disruptive.
 - Be directive: translate each theme into a choice, behavior, preparation, or
   question the person can use. Avoid vague encouragement and generic advice.
 - Be detailed where the evidence is strong, but stay selective.
 - Expand on patterns, likely experiences, emotional tone, timing, and practical
   implications when the evidence supports it.
+- Develop each major point far enough that it feels interpreted, not merely
+  mentioned. When you name a theme, unpack its consequences, emotional tone,
+  likely scenario, and practical meaning before moving on.
 - It is better to give a rich, selective reading than a long repetitive one.
 - Use bold lead-ins where they improve scanability, especially for turning
   points, actions, and cautions.
-- Aim for roughly 600 to 900 words. Stay shorter if the evidence is limited.
+- Aim for roughly 900 to 1400 words when the evidence is reasonably strong.
+  Stay shorter only if the evidence is genuinely limited.
 - Start directly with the useful interpretation; avoid filler introductions and
   avoid ending with a generic motivational wrap-up.
 - Follow this Markdown structure exactly:
@@ -298,6 +354,8 @@ Requirements:
 - Bad output to avoid:
   repetitive, random, bloated, mystical filler, generic inspiration, or
   paraphrasing the same claim multiple times.
+- The user should feel that the reading listened to the question and answered
+  it like a real astrologer would.
 - After the structured reading, end with one italicized sentence stating that
   the reading is for reflection and personal insight, not certainty.
 
@@ -306,12 +364,18 @@ Evidence catalog:
 """
 
 
-def generate_report(request: ReportRequest):
+def generate_report(request: ReportRequest, request_id=None):
     data = calculate_system_data(request)
     period = forecast_period(request.report_type)
     evidence = build_evidence(request.system, data, request.report_type)
-    prompt = build_prompt(request, evidence, period)
-    report = ask_ai(prompt, system_prompt=SYSTEM_PROMPT)
+    synthesis = build_synthesis(request.system, data, evidence, request.report_type, period)
+    prompt = build_prompt(request, evidence, period, synthesis)
+    report = ask_ai(
+        prompt,
+        system_prompt=SYSTEM_PROMPT,
+        request_id=request_id,
+        stage="Reading the chart and writing your report",
+    )
     try:
         validate_report_evidence(report, evidence)
     except AIClientError:
@@ -337,7 +401,12 @@ Draft report:
 """
         draft_report = report
         try:
-            report = ask_ai(repair_prompt, system_prompt=SYSTEM_PROMPT)
+            report = ask_ai(
+                repair_prompt,
+                system_prompt=SYSTEM_PROMPT,
+                request_id=request_id,
+                stage="Rechecking the evidence and tightening the reading",
+            )
         except AIClientError:
             report = append_evidence_basis(draft_report, evidence)
         try:
@@ -353,19 +422,24 @@ Draft report:
     validated_report = report
     if should_polish_report(report):
         try:
-            polished_report = polish_report(report, request)
+            polished_report = polish_report(report, request, request_id=request_id)
             validate_report_evidence(polished_report, evidence)
             report = polished_report
         except AIClientError:
             report = validated_report
+    display_report = sanitize_report_for_display(report)
     return {
         "name": request.name,
         "system": request.system,
         "report_type": request.report_type,
         "forecast_period": period,
+        "question": request.question,
         "ai_model": get_last_used_model(),
+        "confidence": synthesis["overall_confidence"],
+        "insight_map": synthesis["areas"],
+        "timing_windows": synthesis["timing_windows"],
         "themes": extract_themes(request.system, data, request.report_type),
         "evidence": evidence,
         "data": data,
-        "report": report,
+        "report": display_report,
     }

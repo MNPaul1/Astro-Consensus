@@ -75,16 +75,6 @@ export default function BirthForm({
             )}
           </>
         )}
-
-        <textarea
-          name="question"
-          value={form.question}
-          onChange={handleChange}
-          placeholder="What would you like the report to focus on?"
-          rows="3"
-          maxLength="1000"
-          className="input-field-compact resize-none"
-        />
       </div>
     </div>
   );
