@@ -1,5 +1,8 @@
-export default function ReportTypeSelector({ reportType, setReportType }) {
-  const types = ["personality", "daily", "weekly", "monthly", "yearly"];
+export default function ReportTypeSelector({
+  reportType,
+  setReportType,
+  types = ["personality", "daily", "weekly", "monthly", "yearly"],
+}) {
 
   return (
     <div className="mb-3">

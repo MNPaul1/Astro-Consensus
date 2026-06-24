@@ -2,12 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import { searchLocations } from "../../services/api";
 import BirthForm from "./Sidebar/BirthForm";
+import ForecastWindowSelector from "./Sidebar/ForecastWindowSelector";
 import GenerateButton from "./Sidebar/GenerateButton";
 import LifeAreaSelector from "./Sidebar/LifeAreaSelector";
 import ReportTypeSelector from "./Sidebar/ReportTypeSelector";
 import SystemSelector from "./Sidebar/SystemSelector";
 
 export default function Sidebar({
+  workspace = "reading",
   system,
   setSystem,
   reportType,
@@ -18,6 +20,7 @@ export default function Sidebar({
   formError,
   setFormError,
   onGenerate,
+  onGenerateForecast,
 }) {
   const [locationResults, setLocationResults] = useState([]);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -92,25 +95,49 @@ export default function Sidebar({
     return required.every((field) => String(form[field]).trim() !== "");
   }, [form, requiresAstrology]);
 
+  const forecastMode = workspace === "forecast";
+  const reportTypes = forecastMode
+    ? ["daily", "weekly", "monthly", "yearly"]
+    : ["personality", "daily", "weekly", "monthly", "yearly"];
+
   return (
-    <aside className="app-sidebar border-b p-3 backdrop-blur-xl lg:h-full lg:w-auto lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
+    <aside className="app-sidebar border-b p-3 backdrop-blur-xl lg:flex lg:h-full lg:w-auto lg:min-h-0 lg:flex-col lg:overflow-y-auto lg:border-b-0 lg:border-r lg:p-4">
       <div className="mx-auto max-w-5xl lg:max-w-none">
         <div className="mb-5">
-          <h2 className="text-xl font-bold">Create Reading</h2>
+          <h2 className="text-xl font-bold">
+            {forecastMode ? "Forecast Studio" : "Create Reading"}
+          </h2>
           <p className="muted-text mt-1 text-sm">
-            Enter the birth data once, then use the consultation bar above to ask a focused question or open the chart view.
+            {forecastMode
+              ? "Choose a system, forecast window, and life area, then explore weekly, monthly, or yearly timing from its own workspace."
+              : "Enter the birth data once, then use the consultation bar above to ask a focused question or open the chart view."}
           </p>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1">
           <SystemSelector system={system} setSystem={setSystem} />
-          <ReportTypeSelector reportType={reportType} setReportType={setReportType} />
-          <LifeAreaSelector
-            lifeArea={form.lifeArea}
-            setLifeArea={(value) =>
-              setForm((current) => ({ ...current, lifeArea: value }))
-            }
+          <ReportTypeSelector
+            reportType={reportType}
+            setReportType={setReportType}
+            types={reportTypes}
           />
+          {forecastMode ? (
+            <>
+              <ForecastWindowSelector
+                reportType={reportType}
+                forecastDate={form.forecastDate}
+                setForecastDate={(value) =>
+                  setForm((current) => ({ ...current, forecastDate: value }))
+                }
+              />
+              <LifeAreaSelector
+                lifeArea={form.lifeArea}
+                setLifeArea={(value) =>
+                  setForm((current) => ({ ...current, lifeArea: value }))
+                }
+              />
+            </>
+          ) : null}
         </div>
 
         <BirthForm
@@ -123,7 +150,13 @@ export default function Sidebar({
           requiresAstrology={requiresAstrology}
         />
         {formError && <p className="error-text mb-3 text-sm">{formError}</p>}
-        <GenerateButton loading={loading} disabled={!isComplete} onGenerate={onGenerate} />
+        <GenerateButton
+          loading={loading}
+          disabled={!isComplete}
+          onGenerate={forecastMode ? onGenerateForecast : onGenerate}
+          label={forecastMode ? "Generate Forecast" : "Generate Report"}
+          loadingLabel={forecastMode ? "Calculating the forecast..." : "Calculating and writing..."}
+        />
       </div>
     </aside>
   );

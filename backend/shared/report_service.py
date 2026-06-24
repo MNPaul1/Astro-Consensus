@@ -167,7 +167,11 @@ def build_transit_calendar(system, data, report_type, life_area):
                 "label": _calendar_label(index, len(snapshots)),
                 "date": snapshot["date"],
                 "title": _numerology_calendar_title(snapshot, life_area),
-                "body": _numerology_calendar_body(snapshot, life_area),
+                "body": _numerology_calendar_body(
+                    snapshot,
+                    snapshots[index - 1] if index > 0 else None,
+                    life_area,
+                ),
             }
             for index, snapshot in enumerate(snapshots)
         ]
@@ -198,15 +202,34 @@ def build_transit_calendar(system, data, report_type, life_area):
     snapshots = data.get("transit_snapshots", [])
     if not snapshots:
         return []
-    return [
-        {
-            "label": _calendar_label(index, len(snapshots)),
-            "date": snapshot["date"],
-            "title": _astrology_calendar_title(snapshot, life_area),
-            "body": _astrology_calendar_body(system, snapshot, life_area),
-        }
-        for index, snapshot in enumerate(snapshots[:6])
-    ]
+
+    calendar = []
+    previous_lead_name = None
+    for index, snapshot in enumerate(snapshots[:6]):
+        previous_snapshot = snapshots[index - 1] if index > 0 else None
+        label = _calendar_label(index, len(snapshots))
+        candidates = _astrology_planet_candidates(snapshot, previous_snapshot, life_area)
+        selected = _select_calendar_candidates(candidates, previous_snapshot, life_area)
+        lead = _calendar_lead_candidate(selected, previous_lead_name)
+        title = _astrology_calendar_title(snapshot, lead, label)
+        body = _astrology_calendar_body(
+            system,
+            snapshot,
+            previous_snapshot,
+            life_area,
+            selected=selected,
+            label=label,
+        )
+        calendar.append(
+            {
+                "label": label,
+                "date": snapshot["date"],
+                "title": title,
+                "body": body,
+            }
+        )
+        previous_lead_name = lead["name"] if lead else None
+    return calendar
 
 
 def _calendar_label(index, total):
@@ -230,38 +253,243 @@ def _astrology_focus_planets(life_area):
     }.get(life_area, ("Moon", "Mercury", "Saturn"))
 
 
-def _astrology_calendar_title(snapshot, life_area):
-    focus_planet = _astrology_focus_planets(life_area)[0]
-    planet = snapshot["planets"].get(focus_planet)
-    if not planet:
-        return "Forecast checkpoint"
-    return f"{focus_planet} in {planet['sign']}"
+def _life_area_planet_weights(life_area):
+    weights = {
+        "Sun": 1.0,
+        "Moon": 1.0,
+        "Mercury": 1.0,
+        "Venus": 1.0,
+        "Mars": 1.0,
+        "Jupiter": 1.0,
+        "Saturn": 1.0,
+        "Rahu": 0.9,
+        "Ketu": 0.9,
+        "Uranus": 0.7,
+        "Neptune": 0.7,
+        "Pluto": 0.8,
+        "North Node": 0.9,
+    }
+    overrides = {
+        "love": {"Venus": 1.8, "Moon": 1.5, "Mars": 1.4, "Mercury": 1.1},
+        "career": {"Saturn": 1.7, "Mercury": 1.5, "Jupiter": 1.4, "Sun": 1.2, "Mars": 1.1},
+        "money": {"Jupiter": 1.7, "Venus": 1.5, "Mercury": 1.4, "Saturn": 1.2},
+        "family": {"Moon": 1.8, "Venus": 1.4, "Saturn": 1.2, "Sun": 1.1},
+        "growth": {"Saturn": 1.7, "Jupiter": 1.6, "Ketu": 1.5, "Rahu": 1.3, "Pluto": 1.2},
+        "general": {"Moon": 1.3, "Mercury": 1.2, "Saturn": 1.2, "Jupiter": 1.1},
+    }.get(life_area, {})
+    weights.update(overrides)
+    return weights
 
 
-def _astrology_calendar_body(system, snapshot, life_area):
+def _planet_delta(current_degree, previous_degree):
+    delta = current_degree - previous_degree
+    if delta > 15:
+        delta -= 30
+    elif delta < -15:
+        delta += 30
+    return round(delta, 2)
+
+
+def _astrology_planet_candidates(snapshot, previous_snapshot, life_area):
     planets = snapshot["planets"]
-    focus_names = _astrology_focus_planets(life_area)
-    parts = []
-    for name in focus_names:
-      planet = planets.get(name)
-      if not planet:
-          continue
-      parts.append(_planet_transit_line(system, name, planet["sign"], life_area))
+    previous_planets = previous_snapshot["planets"] if previous_snapshot else {}
+    weights = _life_area_planet_weights(life_area)
+    candidates = []
+
+    for name, planet in planets.items():
+        previous = previous_planets.get(name)
+        sign_changed = bool(previous and previous["sign"] != planet["sign"])
+        delta = None
+        if previous and previous.get("degree") is not None and planet.get("degree") is not None:
+            delta = _planet_delta(planet["degree"], previous["degree"])
+        score = weights.get(name, 1.0)
+        if sign_changed:
+            score += 4
+        if delta is not None:
+            score += min(abs(delta), 12) / 3
+        candidates.append(
+            {
+                "name": name,
+                "planet": planet,
+                "previous": previous,
+                "sign_changed": sign_changed,
+                "delta": delta,
+                "score": round(score, 2),
+            }
+        )
+
+    return sorted(candidates, key=lambda item: item["score"], reverse=True)
+
+
+def _astrology_calendar_title(snapshot, lead, label):
+    if not lead:
+        return f"Forecast checkpoint on {snapshot['date']}"
+    if lead["sign_changed"]:
+        return f"{lead['name']} enters {lead['planet']['sign']}"
+    if lead["delta"] is not None and abs(lead["delta"]) >= 4:
+        return f"{lead['name']} intensifies in {lead['planet']['sign']}"
+    if label == "Opening":
+        return f"{lead['name']} opens in {lead['planet']['sign']}"
+    if label == "Middle":
+        return f"{lead['name']} holds the middle in {lead['planet']['sign']}"
+    if label == "Closing":
+        return f"{lead['name']} closes in {lead['planet']['sign']}"
+    if lead["planet"]:
+        return f"{lead['name']} continues through {lead['planet']['sign']}"
+    return f"Forecast checkpoint on {snapshot['date']}"
+
+
+def _astrology_calendar_body(system, snapshot, previous_snapshot, life_area, selected=None, label=None):
+    if selected is None:
+        candidates = _astrology_planet_candidates(snapshot, previous_snapshot, life_area)
+        selected = _select_calendar_candidates(candidates, previous_snapshot, life_area)
+    parts = [
+        _planet_transit_line(
+            system,
+            candidate["name"],
+            candidate["planet"],
+            candidate["previous"],
+            life_area,
+            is_opening=previous_snapshot is None,
+        )
+        for candidate in selected
+    ]
+    phase_intro = _calendar_phase_intro(label, snapshot, previous_snapshot)
+    if phase_intro:
+        return f"{phase_intro} {' '.join(parts)}"
     return " ".join(parts)
 
 
-def _planet_transit_line(system, name, sign, life_area):
+def _calendar_lead_candidate(selected, previous_lead_name):
+    if not selected:
+        return None
+    if previous_lead_name:
+        for candidate in selected:
+            if candidate["sign_changed"] and candidate["name"] != previous_lead_name:
+                return candidate
+        for candidate in selected:
+            if candidate["name"] != previous_lead_name:
+                return candidate
+    return selected[0]
+
+
+def _calendar_phase_intro(label, snapshot, previous_snapshot):
+    if label == "Opening":
+        return f"This is the opening tone for {snapshot['date']}."
+    if label == "Middle":
+        return f"This midpoint checkpoint shows what is building by {snapshot['date']}."
+    if label == "Closing":
+        return f"This closing checkpoint shows what the period is settling into by {snapshot['date']}."
+    if previous_snapshot:
+        return f"By {snapshot['date']}, the pattern has shifted from the {previous_snapshot['date']} checkpoint."
+    return ""
+
+
+def _select_calendar_candidates(candidates, previous_snapshot, life_area):
+    if not candidates:
+        return []
+
+    if previous_snapshot is None:
+        return [candidate for candidate in candidates[:3] if candidate["score"] >= 1.0]
+
+    selected = []
+    used_names = set()
+
+    def add_candidate(candidate):
+        if not candidate or candidate["name"] in used_names:
+            return
+        selected.append(candidate)
+        used_names.add(candidate["name"])
+
+    sign_changes = [candidate for candidate in candidates if candidate["sign_changed"]]
+    strong_movers = [
+        candidate
+        for candidate in candidates
+        if candidate["delta"] is not None and abs(candidate["delta"]) >= 2 and not candidate["sign_changed"]
+    ]
+    support_names = _astrology_focus_planets(life_area)
+    support_candidates = [
+        next((candidate for candidate in candidates if candidate["name"] == name), None)
+        for name in support_names
+    ]
+    background_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["name"] in {"Saturn", "Jupiter", "Rahu", "Ketu", "Pluto", "Neptune", "Uranus", "Sun"}
+    ]
+
+    for candidate in sign_changes[:2]:
+        add_candidate(candidate)
+    for candidate in strong_movers:
+        if len(selected) >= 3:
+            break
+        add_candidate(candidate)
+    for candidate in support_candidates:
+        if len(selected) >= 3:
+            break
+        add_candidate(candidate)
+    for candidate in background_candidates:
+        if len(selected) >= 3:
+            break
+        add_candidate(candidate)
+    for candidate in candidates:
+        if len(selected) >= 3:
+            break
+        if candidate["score"] < 1.0:
+            continue
+        add_candidate(candidate)
+
+    return selected[:3]
+
+
+def _planet_transit_line(system, name, planet, previous_planet, life_area, is_opening=False):
     tradition = "Vedic" if system == "vedic" else "Western"
-    templates = {
-        "Moon": f"{tradition} Moon moving through {sign} shifts the emotional tone and changes how quickly feelings rise to the surface.",
-        "Mercury": f"{tradition} Mercury in {sign} emphasizes decisions, communication, and the need to think through details carefully.",
-        "Venus": f"{tradition} Venus in {sign} softens the tone around attraction, values, closeness, and what feels worth keeping.",
-        "Mars": f"{tradition} Mars in {sign} adds urgency, desire, and more direct action around the current {life_area} themes.",
-        "Jupiter": f"{tradition} Jupiter in {sign} opens room for growth, perspective, and better judgment around long-term choices.",
-        "Saturn": f"{tradition} Saturn in {sign} slows things down and asks for patience, realism, and something more sustainable.",
-        "Ketu": f"{tradition} Ketu in {sign} can make this phase feel reflective, detached, or karmically significant.",
-    }
-    return templates.get(name, f"{tradition} {name} in {sign} activates this phase.")
+    sign = planet["sign"]
+    degree = planet.get("degree")
+    effect = {
+        "Moon": "sets the emotional tone and shows what rises quickly to the surface",
+        "Sun": "highlights where identity, confidence, and visibility are being tested or strengthened",
+        "Mercury": "shapes decisions, conversations, and the need to sort details carefully",
+        "Venus": "changes the tone around attraction, values, closeness, and what feels worth keeping",
+        "Mars": f"adds urgency, desire, and more direct action around current {life_area} themes",
+        "Jupiter": "opens room for growth, perspective, and better judgment around long-term choices",
+        "Saturn": "slows the pace and asks for patience, realism, and something sustainable",
+        "Rahu": "intensifies appetite, experimentation, and the pull toward unfamiliar territory",
+        "Ketu": "makes the phase more reflective, detached, or karmically charged",
+        "Uranus": "pushes for disruption, surprise, and a break from stale patterns",
+        "Neptune": "blurs certainty and heightens imagination, longing, or idealization",
+        "Pluto": "deepens the pressure to transform what is no longer stable underneath",
+        "North Node": "pulls attention toward future growth, risk, and new appetite",
+    }.get(name, "activates this phase in a noticeable way")
+
+    if is_opening or not previous_planet:
+        return f"{tradition} {name} opens the period in {sign} and {effect}."
+
+    if previous_planet["sign"] != sign:
+        return (
+            f"{tradition} {name} leaves {previous_planet['sign']} and enters {sign}, "
+            f"which gives this checkpoint a fresh turn and {effect}."
+        )
+
+    if degree is not None and previous_planet.get("degree") is not None:
+        delta = _planet_delta(degree, previous_planet["degree"])
+        movement_size = abs(delta)
+        if movement_size >= 5:
+            return (
+                f"{tradition} {name} pushes deeper through {sign} by about {movement_size:.2f} degrees, "
+                f"so this checkpoint is active rather than static and {effect}."
+            )
+        if movement_size >= 2:
+            return (
+                f"{tradition} {name} keeps advancing through {sign} by about {movement_size:.2f} degrees, "
+                f"so the theme is developing rather than standing still and {effect}."
+            )
+        return (
+            f"{tradition} {name} stays in {sign} with only slight movement, "
+            f"so it acts more like background pressure here and {effect}."
+        )
+
+    return f"{tradition} {name} in {sign} {effect}."
 
 
 def _numerology_calendar_title(snapshot, life_area):
@@ -272,18 +500,30 @@ def _numerology_calendar_title(snapshot, life_area):
     return f"Cycle snapshot {snapshot['date']}"
 
 
-def _numerology_calendar_body(snapshot, life_area):
+def _numerology_calendar_body(snapshot, previous_snapshot, life_area):
+    previous_month = previous_snapshot.get("personal_month") if previous_snapshot else None
+    previous_day = previous_snapshot.get("personal_day") if previous_snapshot else None
+    transition = ""
+    if previous_month is not None and previous_month != snapshot.get("personal_month"):
+        transition = (
+            f" This is a real shift from personal month {previous_month} into {snapshot.get('personal_month')}."
+        )
+    elif previous_day is not None and previous_day != snapshot.get("personal_day"):
+        transition = (
+            f" The personal day changes from {previous_day} to {snapshot.get('personal_day')}, so the feel of the checkpoint is not identical to the last one."
+        )
+
     if life_area == "love":
-        return f"Personal month {snapshot.get('personal_month')} changes the emotional tone of connection, while personal day {snapshot.get('personal_day')} shows how quickly relationships move on that checkpoint."
+        return f"Personal month {snapshot.get('personal_month')} changes the emotional tone of connection, while personal day {snapshot.get('personal_day')} shows how quickly relationships move on that checkpoint.{transition}"
     if life_area == "career":
-        return f"Personal year {snapshot.get('personal_year')} sets the wider career lesson, and personal month {snapshot.get('personal_month')} shows how actively the current phase pushes action."
+        return f"Personal year {snapshot.get('personal_year')} sets the wider career lesson, and personal month {snapshot.get('personal_month')} shows how actively the current phase pushes action.{transition}"
     if life_area == "money":
-        return f"Personal month {snapshot.get('personal_month')} shapes practical financial movement, while personal day {snapshot.get('personal_day')} shows how immediate the pressure or opening feels."
+        return f"Personal month {snapshot.get('personal_month')} shapes practical financial movement, while personal day {snapshot.get('personal_day')} shows how immediate the pressure or opening feels.{transition}"
     if life_area == "family":
-        return f"Personal month {snapshot.get('personal_month')} affects closeness and domestic attention, while personal day {snapshot.get('personal_day')} shows how quickly family matters come to the front."
+        return f"Personal month {snapshot.get('personal_month')} affects closeness and domestic attention, while personal day {snapshot.get('personal_day')} shows how quickly family matters come to the front.{transition}"
     if life_area == "growth":
-        return f"Personal year {snapshot.get('personal_year')} sets the deeper growth chapter, while personal month {snapshot.get('personal_month')} shows the current developmental push."
-    return f"Personal year {snapshot.get('personal_year')} and personal month {snapshot.get('personal_month')} combine to shape the tone of this checkpoint."
+        return f"Personal year {snapshot.get('personal_year')} sets the deeper growth chapter, while personal month {snapshot.get('personal_month')} shows the current developmental push.{transition}"
+    return f"Personal year {snapshot.get('personal_year')} and personal month {snapshot.get('personal_month')} combine to shape the tone of this checkpoint.{transition}"
 
 
 def is_request_too_large_error(error):
@@ -330,7 +570,7 @@ Draft:
 
 
 def calculate_system_data(request):
-    dates = forecast_dates(request.report_type)
+    dates = forecast_dates(request.report_type, request.forecast_date)
     common = {
         "year": request.year,
         "month": request.month,
@@ -490,6 +730,9 @@ Requirements:
   evidence and life areas most relevant to that topic.
 - If a life area focus is provided, make that area the center of gravity for the
   reading while staying honest about what the evidence can and cannot support.
+- Use the reality checks in the briefing as hard boundaries. Lean in where the
+  support is strong, soften where the signals are mixed, and do not write past
+  what the chart or numerology can genuinely support.
 - If the evidence does not strongly support the requested topic, say so
   honestly and shift to the nearest supported pattern instead of forcing an
   answer.
@@ -505,6 +748,10 @@ Requirements:
 - Where timing evidence is strong, describe it like a real astrologer would:
   for example, Jupiter opening growth, Saturn applying pressure, Venus softening
   tone, or Mercury bringing review, rather than reciting raw chart notation.
+- When the forecast spans multiple checkpoints, write the period as a sequence:
+  what opens first, what shifts in the middle, and what changes by the close.
+  Do not repeat the same interpretation for each phase unless the evidence
+  really stays unchanged.
 - Distinguish strong patterns from mixed or limited evidence.
 - {system_requirement}
 - Cite evidence IDs exactly, for example [V-ASC] or [W-ASPECT-1].
@@ -565,9 +812,16 @@ Evidence catalog:
 
 def generate_report(request: ReportRequest, request_id=None):
     data = calculate_system_data(request)
-    period = forecast_period(request.report_type)
+    period = forecast_period(request.report_type, request.forecast_date)
     evidence = build_evidence(request.system, data, request.report_type)
-    synthesis = build_synthesis(request.system, data, evidence, request.report_type, period)
+    synthesis = build_synthesis(
+        request.system,
+        data,
+        evidence,
+        request.report_type,
+        period,
+        request.life_area,
+    )
     prompt = build_prompt(request, evidence, period, synthesis)
     try:
         report = ask_ai(
@@ -649,6 +903,8 @@ Draft report:
         "confidence": synthesis["overall_confidence"],
         "insight_map": synthesis["areas"],
         "timing_windows": synthesis["timing_windows"],
+        "focus_area": synthesis.get("focus_area"),
+        "reality_checks": synthesis.get("reality_checks", {}),
         "transit_calendar": build_transit_calendar(
             request.system, data, request.report_type, request.life_area
         ),

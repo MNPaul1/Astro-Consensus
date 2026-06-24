@@ -3,8 +3,10 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from shared.ai_client import AIClientError
+from shared.forecast import forecast_period
 from shared.models.birth_data import ReportRequest
 from shared.report_service import (
+    build_transit_calendar,
     calculate_system_data,
     forecast_dates,
     generate_report,
@@ -52,6 +54,15 @@ def test_request_rejects_future_birth_date():
         )
 
 
+def test_request_rejects_forecast_date_outside_current_year():
+    with pytest.raises(ValueError, match="current year"):
+        ReportRequest(
+            **BASE_REQUEST,
+            system="vedic",
+            forecast_date=date(date.today().year + 1, 1, 1),
+        )
+
+
 def test_vedic_chart_uses_historical_timezone_and_opposite_nodes():
     chart = calculate_system_data(request_for("vedic"))
     assert chart["birth_time"]["utc"].startswith("1995-04-13T02:30")
@@ -61,6 +72,49 @@ def test_vedic_chart_uses_historical_timezone_and_opposite_nodes():
     ) % 360
     assert node_distance == pytest.approx(180, abs=0.02)
     assert len(chart["transit_snapshots"]) == 7
+
+
+def test_calculation_uses_selected_forecast_date():
+    anchor = date(date.today().year, 9, 1)
+    chart = calculate_system_data(
+        ReportRequest(
+            **BASE_REQUEST,
+            system="western",
+            report_type="monthly",
+            forecast_date=anchor,
+        )
+    )
+    assert chart["transit_snapshots"][0]["date"] == anchor.isoformat()
+
+
+def test_transit_calendar_uses_real_snapshot_changes():
+    anchor = date(date.today().year, 9, 1)
+    chart = calculate_system_data(
+        ReportRequest(
+            **BASE_REQUEST,
+            system="western",
+            report_type="monthly",
+            forecast_date=anchor,
+        )
+    )
+    calendar = build_transit_calendar("western", chart, "monthly", "career")
+    assert len(calendar) >= 3
+    bodies = {entry["body"] for entry in calendar}
+    titles = {entry["title"] for entry in calendar}
+    assert len(bodies) == len(calendar)
+    assert len(titles) == len(calendar)
+    assert any(
+        phrase in entry["body"]
+        for entry in calendar
+        for phrase in (
+            "fresh turn",
+            "active rather than static",
+            "background pressure",
+            "opening tone",
+            "midpoint checkpoint",
+            "closing checkpoint",
+        )
+    )
 
 
 def test_starting_dasha_begins_before_birth():
@@ -110,6 +164,18 @@ def test_forecast_sampling_matches_report_period():
     assert len(monthly_dates) == 7
     assert (monthly_dates[-1].date() - monthly_dates[0].date()).days == 29
     assert len(forecast_dates("yearly")) >= 2
+
+
+def test_forecast_dates_honor_selected_anchor_date():
+    anchor = date(date.today().year, 8, 1)
+    weekly_dates = forecast_dates("weekly", anchor)
+    monthly_dates = forecast_dates("monthly", anchor)
+
+    assert weekly_dates[0].date() == anchor
+    assert weekly_dates[-1].date() == anchor + timedelta(days=6)
+    assert monthly_dates[0].date() == anchor
+    assert monthly_dates[-1].date() == anchor + timedelta(days=29)
+    assert forecast_period("monthly", anchor).startswith("August 01")
 
 
 def test_report_rejects_unknown_evidence_ids():
@@ -249,6 +315,8 @@ def test_report_returns_v2_synthesis_fields(monkeypatch):
     assert result["insight_map"][0]["signals"]
     assert result["timing_windows"]
     assert result["transit_calendar"]
+    assert result["focus_area"]
+    assert result["reality_checks"]["cautions"]
 
 
 def test_report_preserves_selected_life_area_and_builds_calendar(monkeypatch):
@@ -315,6 +383,8 @@ def test_ai_prompt_uses_only_catalogued_evidence(monkeypatch):
     assert "strongest 2 to 4 themes" in captured["prompt"]
     assert "Bad output to avoid" in captured["prompt"]
     assert "Life area focus: General focus." in captured["prompt"]
+    assert "Reality checks:" in captured["prompt"]
+    assert "Use the reality checks in the briefing as hard boundaries." in captured["prompt"]
     assert "core_numbers" not in captured["prompt"]
     assert result["evidence"]["N-CORE-LIFE-PATH"].endswith("4")
     assert not any(key.startswith("N-CYCLE") for key in result["evidence"])

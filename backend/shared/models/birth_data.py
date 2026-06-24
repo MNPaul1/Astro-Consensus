@@ -17,6 +17,7 @@ class PersonData(BaseModel):
     day: int = Field(ge=1, le=31)
     question: str = Field(default="", max_length=1000)
     life_area: LifeArea = "general"
+    forecast_date: Optional[date] = None
     report_type: ReportType
 
     @field_validator("name", "question", "life_area")
@@ -32,6 +33,8 @@ class PersonData(BaseModel):
             raise ValueError(f"Invalid birth date: {exc}") from exc
         if birth_date > date.today():
             raise ValueError("Birth date cannot be in the future")
+        if self.forecast_date is not None and self.forecast_date.year != date.today().year:
+            raise ValueError("Forecast date must stay within the current year")
         return self
 
 

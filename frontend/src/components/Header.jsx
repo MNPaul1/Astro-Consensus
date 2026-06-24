@@ -7,25 +7,19 @@ function formatSystemLabel(system) {
   return `${system.charAt(0).toUpperCase() + system.slice(1)} Chart`;
 }
 
-function ThemeIcon({ theme }) {
-  if (theme === "dark") {
-    return <span aria-hidden="true" className="header-theme-toggle__icon">☀</span>;
-  }
-  return <span aria-hidden="true" className="header-theme-toggle__icon">◐</span>;
-}
-
 export default function Header({
-  theme,
-  toggleTheme,
   question,
   setQuestion,
   questionOpen,
   setQuestionOpen,
   canAskQuestion,
   canGoHome,
+  activeWorkspace,
   activeSystem,
   loading,
   onAskQuestion,
+  onOpenForecast,
+  onOpenRoadmap,
   onGoHome,
   onViewChart,
 }) {
@@ -98,26 +92,22 @@ export default function Header({
         app-header
 
         backdrop-blur-xl
-
-        sticky
-        top-0
-        z-30
       "
     >
-      <div className="header-shell flex w-full items-center gap-4">
+      <div className="header-shell flex w-full items-center gap-3">
         <div className="flex min-w-[220px] items-center justify-between gap-4">
           <div>
             <h1
-              className="brand-title text-xl font-bold"
+              className="brand-title text-[1.9rem] font-semibold leading-none tracking-[-0.02em]"
             >
               ✦ Astro Consensus
             </h1>
 
             <p
               className="
-                text-xs
+                text-[0.8rem]
                 muted-text
-                mt-1
+                mt-1.5
               "
             >
               Ancient Wisdom | Modern Intelligence
@@ -139,17 +129,26 @@ export default function Header({
 
         <div
           ref={commandRef}
-          className={`header-command surface-card relative flex min-w-0 flex-1 items-center justify-between gap-3 rounded-[1.15rem] border px-3 py-2 ${menuOpen ? "header-command--open" : ""}`}
+          className={`header-command surface-card relative flex min-w-0 flex-1 items-center justify-between gap-3 rounded-[1.15rem] border px-3 py-2.5 ${menuOpen ? "header-command--open" : ""}`}
         >
           <div className={`header-actions min-w-0 ${menuOpen ? "header-actions--open" : ""}`}>
             <button
               type="button"
               onClick={onGoHome}
               disabled={!canGoHome || loading}
-              className="header-action"
-              title={!canGoHome ? "Open a chart view to return to the last reading" : "Return to the previous reading"}
+              className={`header-action ${activeWorkspace === "reading" ? "header-action--active" : ""}`}
+              title={!canGoHome ? "Return to the main reading workspace" : "Return to the previous reading"}
             >
               Home
+            </button>
+            <button
+              type="button"
+              onClick={onOpenForecast}
+              disabled={!canAskQuestion || loading}
+              className={`header-action ${activeWorkspace === "forecast" ? "header-action--active" : ""}`}
+              title={!canAskQuestion ? "Complete the birth data first" : "Open the forecast workspace"}
+            >
+              Forecasts
             </button>
             <button
               type="button"
@@ -169,35 +168,26 @@ export default function Header({
             >
               {formatSystemLabel(activeSystem)}
             </button>
-            <span className="header-status hidden xl:inline">
+            <span className="header-status hidden 2xl:inline">
               {canAskQuestion
                 ? "Birth data ready"
                 : "Add birth details to unlock question and chart actions"}
             </span>
-            <button
-              type="button"
-              onClick={toggleTheme}
-              aria-pressed={theme === "light"}
-              className="header-action header-theme-toggle lg:hidden"
-            >
-              <ThemeIcon theme={theme} />
-              <span>{theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}</span>
-            </button>
           </div>
 
           <div className={`header-tools flex items-center gap-2 ${menuOpen ? "header-tools--open" : ""}`}>
             <span className="header-status xl:hidden">
               {canAskQuestion ? "Ready" : "DOB needed"}
             </span>
+            <span className="header-meta-chip hidden lg:inline-flex">
+              v1.9
+            </span>
             <button
               type="button"
-              onClick={toggleTheme}
-              aria-pressed={theme === "light"}
-              className="header-action header-theme-toggle hidden lg:inline-flex"
-              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              onClick={onOpenRoadmap}
+              className="header-meta-chip header-meta-chip--accent hidden lg:inline-flex"
             >
-              <ThemeIcon theme={theme} />
+              v2.0 coming soon
             </button>
           </div>
 

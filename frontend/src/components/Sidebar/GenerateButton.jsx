@@ -1,4 +1,10 @@
-export default function GenerateButton({ loading, onGenerate, disabled }) {
+export default function GenerateButton({
+  loading,
+  onGenerate,
+  disabled,
+  label = "Generate Report",
+  loadingLabel = "Calculating and writing...",
+}) {
   return (
     <button
       onClick={onGenerate}
@@ -19,7 +25,7 @@ export default function GenerateButton({ loading, onGenerate, disabled }) {
         transition-all
       "
     >
-      {loading ? "Calculating and writing..." : "Generate Report"}
+      {loading ? loadingLabel : label}
     </button>
   );
 }

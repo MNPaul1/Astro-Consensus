@@ -6,6 +6,22 @@ import Sidebar from "../src/components/Sidebar";
 import ReportViewer from "../src/components/ReportViewer";
 import { calculateSystem, generateReport, getAiProgress } from "../services/api";
 
+function formatDateInput(date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function defaultForecastDate(reportType) {
+  const now = new Date();
+  if (reportType === "monthly") {
+    return formatDateInput(new Date(now.getFullYear(), now.getMonth(), 1));
+  }
+  return formatDateInput(now);
+}
+
 function requiredFieldsComplete(form, system) {
   const required = ["name", "day", "month", "year"];
   if (system !== "numerology") {
@@ -22,6 +38,10 @@ function buildPayload(form, system, reportType, question) {
     month: Number(form.month),
     day: Number(form.day),
     life_area: form.lifeArea,
+    forecast_date:
+      reportType === "personality" || reportType === "yearly"
+        ? undefined
+        : form.forecastDate,
     report_type: reportType,
     question: question.trim(),
   };
@@ -42,6 +62,8 @@ function buildPayload(form, system, reportType, question) {
 export default function Home() {
   const [reportData, setReportData] = useState(null);
   const [lastReadingData, setLastReadingData] = useState(null);
+  const [activeWorkspace, setActiveWorkspace] = useState("reading");
+  const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [questionOpen, setQuestionOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -61,6 +83,7 @@ export default function Home() {
     longitude: "",
     timezone: "",
     lifeArea: "general",
+    forecastDate: defaultForecastDate("weekly"),
   });
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem("astro-theme");
@@ -78,6 +101,43 @@ export default function Home() {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem("astro-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!roadmapOpen) {
+      return undefined;
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") {
+        setRoadmapOpen(false);
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [roadmapOpen]);
+
+  useEffect(() => {
+    setForm((current) => {
+      if (reportType === "personality" || reportType === "yearly") {
+        return current;
+      }
+      if (reportType === "monthly") {
+        const match = /^(\d{4})-(\d{2})-\d{2}$/.exec(current.forecastDate || "");
+        const monthlyDate = match
+          ? `${match[1]}-${match[2]}-01`
+          : defaultForecastDate("monthly");
+        if (monthlyDate === current.forecastDate) {
+          return current;
+        }
+        return { ...current, forecastDate: monthlyDate };
+      }
+      if (current.forecastDate) {
+        return current;
+      }
+      return { ...current, forecastDate: defaultForecastDate(reportType) };
+    });
+  }, [reportType]);
 
   const isComplete = requiredFieldsComplete(form, system);
 
@@ -180,7 +240,20 @@ export default function Home() {
   };
 
   const handleGenerate = async () => {
+    setActiveWorkspace("reading");
     await runReport({ nextQuestion: "", questionMode: false });
+  };
+
+  const handleGenerateForecast = async () => {
+    if (reportType === "personality") {
+      setReportType("weekly");
+    }
+    setActiveWorkspace("forecast");
+    await runReport({
+      nextReportType: reportType === "personality" ? "weekly" : reportType,
+      nextQuestion: "",
+      questionMode: false,
+    });
   };
 
   const handleAskQuestion = async () => {
@@ -215,6 +288,7 @@ export default function Home() {
 
     setLoading(true);
     setFormError("");
+    setActiveWorkspace("chart");
     if (reportData?.report) {
       setLastReadingData(reportData);
     }
@@ -251,10 +325,19 @@ export default function Home() {
   const handleGoHome = () => {
     setQuestionOpen(false);
     setFormError("");
+    setActiveWorkspace("reading");
     if (lastReadingData) {
       setReportData(lastReadingData);
       return;
     }
+    setReportData(null);
+  };
+
+  const handleOpenForecast = () => {
+    setQuestionOpen(false);
+    setFormError("");
+    setActiveWorkspace("forecast");
+    setReportType((current) => (current === "personality" ? "weekly" : current));
     setReportData(null);
   };
 
@@ -264,19 +347,20 @@ export default function Home() {
 
       <div className="relative z-10 min-h-screen lg:h-full flex flex-col">
         <Header
-          theme={theme}
           question={question}
           setQuestion={setQuestion}
           questionOpen={questionOpen}
           setQuestionOpen={setQuestionOpen}
           canAskQuestion={isComplete}
+          activeWorkspace={activeWorkspace}
           activeSystem={system}
-          canGoHome={Boolean(reportData?.chart_only)}
+          canGoHome={activeWorkspace !== "reading" || Boolean(reportData?.chart_only)}
           loading={loading}
           onAskQuestion={handleAskQuestion}
+          onOpenForecast={handleOpenForecast}
+          onOpenRoadmap={() => setRoadmapOpen(true)}
           onGoHome={handleGoHome}
           onViewChart={handleViewChart}
-          toggleTheme={() => setTheme((current) => current === "dark" ? "light" : "dark")}
         />
 
         <main
@@ -285,12 +369,20 @@ export default function Home() {
 
     grid
     grid-cols-1
-    lg:grid-cols-[330px_1fr]
-
+    items-stretch
+    gap-3
+    px-2
+    py-4
+    sm:px-3
+    lg:grid-cols-[360px_minmax(0,1fr)]
+    lg:gap-0
+    lg:px-0
+    lg:py-0
     lg:overflow-hidden
           "
         >
           <Sidebar
+            workspace={activeWorkspace}
             setReportData={setReportData}
             system={system}
             setSystem={setSystem}
@@ -302,15 +394,100 @@ export default function Home() {
             formError={formError}
             setFormError={setFormError}
             onGenerate={handleGenerate}
+            onGenerateForecast={handleGenerateForecast}
           />
           <ReportViewer
             reportData={reportData}
             loading={loading}
             loadingStatus={loadingStatus}
             onQuestionVariant={handleQuestionVariant}
+            workspace={activeWorkspace}
           />
         </main>
+
+        <div className="product-legal px-3 pb-4 pt-2 text-center sm:px-4 lg:pointer-events-none lg:fixed lg:bottom-5 lg:right-5 lg:z-30 lg:px-0 lg:pb-0 lg:pt-0 lg:text-right">
+          Paul Intelligence, a Paul Industries company.
+        </div>
+
       </div>
+
+      {roadmapOpen ? (
+        <div
+          className="roadmap-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="roadmap-title"
+          onClick={() => setRoadmapOpen(false)}
+        >
+          <div
+            className="roadmap-modal surface-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="roadmap-modal__header">
+              <div>
+                <p className="roadmap-modal__eyebrow">Roadmap preview</p>
+                <h2 id="roadmap-title" className="roadmap-modal__title">
+                  Astro Consensus v2.0
+                </h2>
+                <p className="roadmap-modal__copy">
+                  Version 2.0 is planned as the next major product release for Astro Consensus. The focus is on improving continuity for returning users, increasing forecast quality, and introducing a more capable intelligence layer without losing the transparency of the current system.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRoadmapOpen(false)}
+                className="roadmap-modal__close"
+                aria-label="Close roadmap"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="roadmap-modal__grid">
+              <section className="roadmap-card">
+                <h3 className="roadmap-card__title">Saved profiles</h3>
+                <p className="roadmap-card__copy">
+                  Secure account access and saved birth profiles, allowing users to return to the platform without re-entering core birth data for each session.
+                </p>
+              </section>
+              <section className="roadmap-card">
+                <h3 className="roadmap-card__title">Report quality and efficiency</h3>
+                <p className="roadmap-card__copy">
+                  A more disciplined report pipeline with reduced repetition, stronger structure, and clearer timing logic across daily, weekly, monthly, and yearly readings.
+                </p>
+              </section>
+              <section className="roadmap-card">
+                <h3 className="roadmap-card__title">Advanced AI models</h3>
+                <p className="roadmap-card__copy">
+                  Expanded model support and improved routing for deeper interpretation, stronger long-form writing quality, and more reliable forecast generation at scale.
+                </p>
+              </section>
+              <section className="roadmap-card">
+                <h3 className="roadmap-card__title">Reading history and continuity</h3>
+                <p className="roadmap-card__copy">
+                  Persistent access to prior charts, reports, and forecast windows so users can revisit earlier work without unnecessary repeat generation.
+                </p>
+              </section>
+              <section className="roadmap-card">
+                <h3 className="roadmap-card__title">Forecast intelligence</h3>
+                <p className="roadmap-card__copy">
+                  Higher-resolution monthly and yearly transit analysis with better turning-point detection, clearer sequencing, and stronger distinction between signal strength and uncertainty.
+                </p>
+              </section>
+              <section className="roadmap-card">
+                <h3 className="roadmap-card__title">Platform maturity</h3>
+                <p className="roadmap-card__copy">
+                  Continued refinement of onboarding, trust signaling, product clarity, and the overall client-facing experience expected from a production-grade platform.
+                </p>
+              </section>
+            </div>
+
+            <p className="roadmap-modal__signature">
+              Designed and developed by <strong>Mahan</strong>.
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

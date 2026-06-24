@@ -82,6 +82,13 @@ function reportTypeLabel(reportType) {
   return labels[reportType] || reportType;
 }
 
+function focusAreaSummary(focusArea) {
+  if (!focusArea?.title) {
+    return null;
+  }
+  return `${areaLabel(focusArea.title)} looks like the strongest center of gravity in this reading.`;
+}
+
 const QUESTION_SYSTEMS = ["vedic", "western", "numerology", "consensus"];
 const QUESTION_TYPES = ["overall", "daily", "weekly", "yearly"];
 
@@ -90,7 +97,7 @@ function CosmicLoader({ loadingStatus }) {
 
   return (
     <section className="flex min-h-[420px] items-center justify-center p-6 lg:h-full">
-      <div className="cosmic-loader surface-card w-full max-w-2xl rounded-[1.9rem] border p-6 sm:p-8">
+      <div className="cosmic-loader w-full max-w-2xl p-6 sm:p-8">
         <div className="cosmic-loader__scene" aria-hidden="true">
           <div className="cosmic-loader__sun" />
           <div className="cosmic-loader__orbit cosmic-loader__orbit--one">
@@ -137,7 +144,13 @@ function CosmicLoader({ loadingStatus }) {
   );
 }
 
-export default function ReportViewer({ reportData, loading, loadingStatus, onQuestionVariant }) {
+export default function ReportViewer({
+  reportData,
+  loading,
+  loadingStatus,
+  onQuestionVariant,
+  workspace = "reading",
+}) {
   if (reportData?.error) {
     return (
       <section className="flex min-h-[420px] items-center justify-center p-6 lg:h-full">
@@ -211,12 +224,21 @@ export default function ReportViewer({ reportData, loading, loadingStatus, onQue
 
     return (
       <section className="flex min-h-[420px] items-center justify-center p-6 lg:h-full">
-        <div className="max-w-md text-center">
-          <div className="mb-4 text-4xl">✦</div>
-          <h2 className="mb-2 text-2xl font-semibold">Generate Your Reading</h2>
-          <p className="muted-text">
-            Choose a system, enter accurate birth details, and ask a focused question.
+        <div className="empty-state-card surface-card max-w-xl rounded-[1.6rem] border px-8 py-10 text-center">
+          <div className="empty-state-card__mark">✦</div>
+          <h2 className="mb-3 text-[2rem] font-semibold tracking-[-0.02em]">
+            {workspace === "forecast" ? "Open Forecast Studio" : "Generate Your Reading"}
+          </h2>
+          <p className="muted-text mx-auto max-w-lg text-[0.98rem] leading-7">
+            {workspace === "forecast"
+              ? "Use the forecast controls on the left to explore a specific daily, weekly, monthly, or yearly window."
+              : "Choose a system, enter accurate birth details, and ask a focused question."}
           </p>
+          <div className="empty-state-card__tips">
+            <span>Pick a system</span>
+            <span>Add birth details</span>
+            <span>Generate a grounded reading</span>
+          </div>
         </div>
       </section>
     );
@@ -349,7 +371,47 @@ export default function ReportViewer({ reportData, loading, loadingStatus, onQue
               <p className="muted-text mt-3 text-sm">
                 This is a trust layer based on how many chart or numerology signals point in the same direction before the AI writes the report.
               </p>
+              {reportData.focus_area ? (
+                <p className="muted-text mt-3 text-sm">
+                  {focusAreaSummary(reportData.focus_area)}
+                </p>
+              ) : null}
             </div>
+
+            {reportData.reality_checks?.supported?.length
+              || reportData.reality_checks?.mixed?.length
+              || reportData.reality_checks?.cautions?.length ? (
+                <div className="surface-card rounded-2xl border p-5">
+                  <p className="insight-eyebrow">Reality filter</p>
+                  <h3 className="insight-title">How to read this report honestly</h3>
+                  <div className="reality-grid mt-4">
+                    {reportData.reality_checks?.supported?.length ? (
+                      <div className="reality-card reality-card--supported">
+                        <p className="reality-card__title">Strongly supported</p>
+                        {reportData.reality_checks.supported.map((item) => (
+                          <p key={item} className="reality-card__copy">{item}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                    {reportData.reality_checks?.mixed?.length ? (
+                      <div className="reality-card reality-card--mixed">
+                        <p className="reality-card__title">More mixed</p>
+                        {reportData.reality_checks.mixed.map((item) => (
+                          <p key={item} className="reality-card__copy">{item}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                    {reportData.reality_checks?.cautions?.length ? (
+                      <div className="reality-card reality-card--caution">
+                        <p className="reality-card__title">Keep in mind</p>
+                        {reportData.reality_checks.cautions.map((item) => (
+                          <p key={item} className="reality-card__copy">{item}</p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
             {reportData.timing_windows?.length ? (
               <div className="surface-card rounded-2xl border p-5">

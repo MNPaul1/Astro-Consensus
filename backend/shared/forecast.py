@@ -4,8 +4,8 @@ MONTHLY_FORECAST_DAYS = 30
 MONTHLY_SAMPLE_OFFSETS = (0, 5, 10, 15, 20, 25, 29)
 
 
-def forecast_period(report_type):
-    today = date.today()
+def forecast_period(report_type, anchor_date=None):
+    today = anchor_date or date.today()
     if report_type == "daily":
         return today.strftime("%B %d, %Y")
     if report_type == "weekly":
@@ -24,8 +24,8 @@ def forecast_period(report_type):
     return "Natal overview"
 
 
-def forecast_dates(report_type):
-    today = date.today()
+def forecast_dates(report_type, anchor_date=None):
+    today = anchor_date or date.today()
     if report_type in {"personality", "daily"}:
         dates = [today]
     elif report_type == "weekly":

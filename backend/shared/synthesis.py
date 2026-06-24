@@ -33,6 +33,101 @@ def _top_areas(areas: Iterable[dict]) -> list[dict]:
     return sorted(filtered, key=lambda item: item["score"], reverse=True)
 
 
+def _life_area_matches(life_area: str) -> tuple[str, ...]:
+    mapping = {
+        "general": (
+            "Identity and temperament",
+            "Relationships and emotional bonds",
+            "Work and direction",
+            "Growth and karmic pressure",
+            "Growth and deeper lessons",
+            "Growth and timing",
+            "Timing and momentum",
+        ),
+        "love": ("Relationships and emotional bonds",),
+        "career": ("Work and direction",),
+        "money": ("Work and direction", "Timing and momentum", "Growth and timing"),
+        "family": ("Relationships and emotional bonds", "Identity and temperament"),
+        "growth": (
+            "Growth and karmic pressure",
+            "Growth and deeper lessons",
+            "Growth and timing",
+        ),
+    }
+    return mapping.get(life_area, mapping["general"])
+
+
+def _focus_area(areas: list[dict], life_area: str) -> dict | None:
+    matches = _life_area_matches(life_area)
+    for area in areas:
+        if area["title"] in matches:
+            return area
+    return areas[0] if areas else None
+
+
+def _build_reality_checks(
+    featured_areas: list[dict], overall_confidence: str, life_area: str
+) -> dict:
+    supported = []
+    mixed = []
+    cautions = []
+
+    focus = _focus_area(featured_areas, life_area)
+    if focus:
+        supported.append(
+            f"The clearest support in this reading is around {focus['title'].lower()}."
+        )
+
+    strong_areas = [area for area in featured_areas if area["confidence"] == "high"]
+    moderate_areas = [area for area in featured_areas if area["confidence"] == "moderate"]
+    speculative_areas = [
+        area for area in featured_areas if area["confidence"] == "speculative"
+    ]
+
+    if strong_areas:
+        supported.append(
+            "The chart signals stack up most clearly in "
+            + ", ".join(area["title"].lower() for area in strong_areas[:2])
+            + "."
+        )
+    elif moderate_areas:
+        supported.append(
+            "The reading has decent support, but it is stronger as pattern recognition than as exact prediction."
+        )
+
+    if moderate_areas:
+        mixed.append(
+            "Some themes are present but layered, especially in "
+            + ", ".join(area["title"].lower() for area in moderate_areas[:2])
+            + "."
+        )
+
+    if speculative_areas:
+        mixed.append(
+            "A few areas are lighter signals, so they should be read as possibilities rather than certainties."
+        )
+
+    if overall_confidence == "speculative":
+        cautions.append(
+            "This reading should stay interpretive and selective rather than sounding absolute."
+        )
+    else:
+        cautions.append(
+            "Even where the reading is strong, it should describe tendencies, timing windows, and choices instead of fixed outcomes."
+        )
+
+    if life_area in {"love", "career", "money", "family", "growth"}:
+        cautions.append(
+            f"The {life_area} focus should stay central, but the report should not force that topic when the evidence is only indirect."
+        )
+
+    return {
+        "supported": supported[:2],
+        "mixed": mixed[:2],
+        "cautions": cautions[:2],
+    }
+
+
 def _vedic_areas(data: dict, report_type: str) -> list[dict]:
     planets = data["planets"]
     areas = []
@@ -338,7 +433,14 @@ def _consensus_areas(data: dict, report_type: str) -> list[dict]:
     return _top_areas(areas)
 
 
-def build_synthesis(system: str, data: dict, evidence: dict, report_type: str, period: str) -> dict:
+def build_synthesis(
+    system: str,
+    data: dict,
+    evidence: dict,
+    report_type: str,
+    period: str,
+    life_area: str = "general",
+) -> dict:
     if system == "vedic":
         areas = _vedic_areas(data, report_type)
     elif system == "western":
@@ -385,17 +487,34 @@ def build_synthesis(system: str, data: dict, evidence: dict, report_type: str, p
             if evidence_id in evidence and evidence_id not in top_evidence_ids:
                 top_evidence_ids.append(evidence_id)
 
+    focus_area = _focus_area(featured_areas, life_area)
+    reality_checks = _build_reality_checks(
+        featured_areas, overall_confidence, life_area
+    )
+
     return {
         "overall_confidence": overall_confidence,
         "featured_themes": [area["title"] for area in featured_areas],
         "areas": featured_areas,
         "timing_windows": timing_windows,
+        "focus_area": focus_area,
+        "reality_checks": reality_checks,
         "top_evidence_ids": top_evidence_ids[:10],
     }
 
 
 def format_synthesis_for_prompt(synthesis: dict, evidence: dict) -> str:
     lines = [f"Overall confidence: {synthesis['overall_confidence']}"]
+    if synthesis.get("focus_area"):
+        lines.append(
+            f"Focused area: {synthesis['focus_area']['title']} ({synthesis['focus_area']['confidence']} confidence)"
+        )
+    if synthesis.get("reality_checks"):
+        lines.append("Reality checks:")
+        for bucket in ("supported", "mixed", "cautions"):
+            values = synthesis["reality_checks"].get(bucket, [])
+            if values:
+                lines.append(f"- {bucket.title()}: " + " ".join(values))
     for area in synthesis["areas"]:
         lines.append(f"- {area['title']} ({area['confidence']} confidence)")
         lines.append(f"  Summary: {area['summary']}")
