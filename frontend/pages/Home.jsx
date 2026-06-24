@@ -21,6 +21,7 @@ function buildPayload(form, system, reportType, question) {
     year: Number(form.year),
     month: Number(form.month),
     day: Number(form.day),
+    life_area: form.lifeArea,
     report_type: reportType,
     question: question.trim(),
   };
@@ -59,6 +60,7 @@ export default function Home() {
     latitude: "",
     longitude: "",
     timezone: "",
+    lifeArea: "general",
   });
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem("astro-theme");

@@ -89,6 +89,7 @@ body::before {
 .header-shell {
   width: 100%;
   padding: 0.85rem 1.25rem;
+  max-width: none;
 }
 
 .app-header,
@@ -108,6 +109,36 @@ body::before {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.6rem;
+}
+
+.header-tools {
+  display: flex;
+  align-items: center;
+}
+
+.header-menu-toggle {
+  min-width: 5.5rem;
+  justify-content: center;
+}
+
+.header-theme-toggle {
+  min-width: 2.9rem;
+  min-height: 2.9rem;
+  justify-content: center;
+  align-items: center;
+  gap: 0.55rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, transparent), color-mix(in srgb, var(--surface-soft) 88%, transparent));
+}
+
+.header-theme-toggle[aria-pressed="true"] {
+  border-color: var(--accent-border);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+
+.header-theme-toggle__icon {
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .header-action {
@@ -1046,6 +1077,26 @@ body::before {
   line-height: 1.65;
 }
 
+.timeline-copy {
+  margin: 0.6rem 0 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.72;
+}
+
+.transit-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.transit-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 78%, white), color-mix(in srgb, var(--glow-primary) 85%, var(--accent)));
+  content: "";
+}
+
 .insight-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -1850,6 +1901,44 @@ body::before {
 
   .header-command {
     padding: 0.85rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-actions,
+  .header-tools {
+    width: 100%;
+  }
+
+  .header-actions,
+  .header-tools {
+    display: none;
+  }
+
+  .header-actions--open,
+  .header-tools--open,
+  .header-command--open .header-actions,
+  .header-command--open .header-tools {
+    display: flex;
+  }
+
+  .header-actions--open {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .header-tools--open {
+    justify-content: space-between;
+  }
+
+  .header-action {
+    width: 100%;
+    text-align: center;
+  }
+
+  .header-theme-toggle {
+    width: 100%;
+    min-width: 0;
   }
 
   .timeline-grid,

@@ -248,6 +248,29 @@ def test_report_returns_v2_synthesis_fields(monkeypatch):
     assert result["insight_map"]
     assert result["insight_map"][0]["signals"]
     assert result["timing_windows"]
+    assert result["transit_calendar"]
+
+
+def test_report_preserves_selected_life_area_and_builds_calendar(monkeypatch):
+    monkeypatch.setattr(
+        "shared.report_service.ask_ai",
+        lambda _prompt, system_prompt=None: "Grounded [N-CORE-LIFE-PATH] [N-CORE-EXPRESSION]",
+    )
+    request = ReportRequest(
+        name="Test User",
+        year=1995,
+        month=4,
+        day=12,
+        system="numerology",
+        report_type="monthly",
+        life_area="career",
+    )
+
+    result = generate_report(request)
+
+    assert result["life_area"] == "career"
+    assert result["transit_calendar"]
+    assert all("title" in entry and "body" in entry for entry in result["transit_calendar"])
 
 
 def test_consensus_uses_one_ai_call(monkeypatch):
@@ -285,12 +308,13 @@ def test_ai_prompt_uses_only_catalogued_evidence(monkeypatch):
     assert "Evidence catalog:" in captured["prompt"]
     assert "## Core Pattern" in captured["prompt"]
     assert "Be directive" in captured["prompt"]
-    assert "600 to 900 words" in captured["prompt"]
+    assert "900 to 1400 words" in captured["prompt"]
     assert "## Life Themes" in captured["prompt"]
     assert "Do not restate the same point across" in captured["prompt"]
     assert "clear narrative flow" in captured["prompt"]
     assert "strongest 2 to 4 themes" in captured["prompt"]
     assert "Bad output to avoid" in captured["prompt"]
+    assert "Life area focus: General focus." in captured["prompt"]
     assert "core_numbers" not in captured["prompt"]
     assert result["evidence"]["N-CORE-LIFE-PATH"].endswith("4")
     assert not any(key.startswith("N-CYCLE") for key in result["evidence"])

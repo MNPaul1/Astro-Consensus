@@ -1,10 +1,17 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 function formatSystemLabel(system) {
   if (system === "consensus") {
     return "System View";
   }
   return `${system.charAt(0).toUpperCase() + system.slice(1)} Chart`;
+}
+
+function ThemeIcon({ theme }) {
+  if (theme === "dark") {
+    return <span aria-hidden="true" className="header-theme-toggle__icon">☀</span>;
+  }
+  return <span aria-hidden="true" className="header-theme-toggle__icon">◐</span>;
 }
 
 export default function Header({
@@ -23,6 +30,7 @@ export default function Header({
   onViewChart,
 }) {
   const commandRef = useRef(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!questionOpen) {
@@ -66,6 +74,21 @@ export default function Header({
     };
   }, [questionOpen, setQuestionOpen]);
 
+  useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+
+    function handleResize() {
+      if (window.innerWidth >= 1024) {
+        setMenuOpen(false);
+      }
+    }
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [menuOpen]);
+
   return (
     <header
       className="
@@ -81,7 +104,7 @@ export default function Header({
         z-30
       "
     >
-      <div className="header-shell mx-auto flex max-w-7xl items-center gap-4">
+      <div className="header-shell flex w-full items-center gap-4">
         <div className="flex min-w-[220px] items-center justify-between gap-4">
           <div>
             <h1
@@ -101,21 +124,24 @@ export default function Header({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-pressed={theme === "light"}
-            className="theme-toggle rounded-full border px-4 py-2 text-sm font-medium transition-colors lg:hidden"
-          >
-            {theme === "dark" ? "Light mode" : "Dark mode"}
-          </button>
+          <div className="flex items-center gap-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((current) => !current)}
+              aria-expanded={menuOpen}
+              aria-label="Toggle navigation"
+              className={`header-action header-menu-toggle ${menuOpen ? "header-action--active" : ""}`}
+            >
+              {menuOpen ? "Close" : "Menu"}
+            </button>
+          </div>
         </div>
 
         <div
           ref={commandRef}
-          className="header-command surface-card relative flex min-w-0 flex-1 items-center justify-between gap-3 rounded-[1.15rem] border px-3 py-2"
+          className={`header-command surface-card relative flex min-w-0 flex-1 items-center justify-between gap-3 rounded-[1.15rem] border px-3 py-2 ${menuOpen ? "header-command--open" : ""}`}
         >
-          <div className="header-actions min-w-0">
+          <div className={`header-actions min-w-0 ${menuOpen ? "header-actions--open" : ""}`}>
             <button
               type="button"
               onClick={onGoHome}
@@ -148,9 +174,18 @@ export default function Header({
                 ? "Birth data ready"
                 : "Add birth details to unlock question and chart actions"}
             </span>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              aria-pressed={theme === "light"}
+              className="header-action header-theme-toggle lg:hidden"
+            >
+              <ThemeIcon theme={theme} />
+              <span>{theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className={`header-tools flex items-center gap-2 ${menuOpen ? "header-tools--open" : ""}`}>
             <span className="header-status xl:hidden">
               {canAskQuestion ? "Ready" : "DOB needed"}
             </span>
@@ -158,9 +193,11 @@ export default function Header({
               type="button"
               onClick={toggleTheme}
               aria-pressed={theme === "light"}
-              className="theme-toggle hidden rounded-full border px-4 py-2 text-sm font-medium transition-colors lg:inline-flex"
+              className="header-action header-theme-toggle hidden lg:inline-flex"
+              aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             >
-              {theme === "dark" ? "Light mode" : "Dark mode"}
+              <ThemeIcon theme={theme} />
             </button>
           </div>
 

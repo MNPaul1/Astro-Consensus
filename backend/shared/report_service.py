@@ -53,6 +53,15 @@ COMPACT_SYSTEM_PROMPT = """Write a detailed, coherent astrology or numerology re
 Do not invent chart facts. Keep the prose natural, selective, and grounded in lived experience.
 Use evidence IDs only for validation inside the draft. Avoid repetition and filler."""
 
+LIFE_AREA_GUIDANCE = {
+    "general": "Keep the reading broad and balanced across the most important themes.",
+    "love": "Prioritize relationship, attraction, emotional bonding, closeness, compatibility patterns, and partnership timing.",
+    "career": "Prioritize work direction, public role, reputation, discipline, opportunity, leadership, and timing around progress.",
+    "money": "Prioritize earning, stability, risk, growth, values, material planning, and timing around financial movement.",
+    "family": "Prioritize home life, emotional security, roots, close family patterns, caregiving, and domestic timing.",
+    "growth": "Prioritize inner development, healing, karmic lessons, meaning, transformation, and spiritual or personal growth.",
+}
+
 
 def format_evidence(evidence):
     return "\n".join(f"{evidence_id}: {value}" for evidence_id, value in evidence.items())
@@ -132,6 +141,149 @@ def sanitize_report_for_display(report):
 
 def should_polish_report(report):
     return len(report.split()) >= 220
+
+
+def focus_label(life_area):
+    return {
+        "general": "General focus",
+        "love": "Love focus",
+        "career": "Career focus",
+        "money": "Money focus",
+        "family": "Family focus",
+        "growth": "Growth focus",
+    }.get(life_area, "General focus")
+
+
+def build_transit_calendar(system, data, report_type, life_area):
+    if report_type == "personality":
+        return []
+
+    if system == "numerology":
+        snapshots = data.get("cycle_snapshots", [])
+        if not snapshots:
+            return []
+        return [
+            {
+                "label": _calendar_label(index, len(snapshots)),
+                "date": snapshot["date"],
+                "title": _numerology_calendar_title(snapshot, life_area),
+                "body": _numerology_calendar_body(snapshot, life_area),
+            }
+            for index, snapshot in enumerate(snapshots)
+        ]
+
+    if system == "consensus":
+        vedic_calendar = build_transit_calendar("vedic", data["vedic"], report_type, life_area)
+        western_calendar = build_transit_calendar("western", data["western"], report_type, life_area)
+        numerology_calendar = build_transit_calendar("numerology", data["numerology"], report_type, life_area)
+        merged = []
+        for index, entry in enumerate(vedic_calendar[:3]):
+            western_entry = western_calendar[index] if index < len(western_calendar) else None
+            numerology_entry = numerology_calendar[index] if index < len(numerology_calendar) else None
+            body_parts = [entry["body"]]
+            if western_entry:
+                body_parts.append(western_entry["body"])
+            if numerology_entry:
+                body_parts.append(numerology_entry["body"])
+            merged.append(
+                {
+                    "label": entry["label"],
+                    "date": entry["date"],
+                    "title": entry["title"],
+                    "body": " ".join(body_parts),
+                }
+            )
+        return merged
+
+    snapshots = data.get("transit_snapshots", [])
+    if not snapshots:
+        return []
+    return [
+        {
+            "label": _calendar_label(index, len(snapshots)),
+            "date": snapshot["date"],
+            "title": _astrology_calendar_title(snapshot, life_area),
+            "body": _astrology_calendar_body(system, snapshot, life_area),
+        }
+        for index, snapshot in enumerate(snapshots[:6])
+    ]
+
+
+def _calendar_label(index, total):
+    if index == 0:
+        return "Opening"
+    if index == total - 1:
+        return "Closing"
+    if index == total // 2:
+        return "Middle"
+    return f"Checkpoint {index + 1}"
+
+
+def _astrology_focus_planets(life_area):
+    return {
+        "general": ("Moon", "Mercury", "Saturn"),
+        "love": ("Venus", "Moon", "Mars"),
+        "career": ("Saturn", "Mercury", "Jupiter"),
+        "money": ("Jupiter", "Venus", "Mercury"),
+        "family": ("Moon", "Venus", "Saturn"),
+        "growth": ("Saturn", "Jupiter", "Ketu"),
+    }.get(life_area, ("Moon", "Mercury", "Saturn"))
+
+
+def _astrology_calendar_title(snapshot, life_area):
+    focus_planet = _astrology_focus_planets(life_area)[0]
+    planet = snapshot["planets"].get(focus_planet)
+    if not planet:
+        return "Forecast checkpoint"
+    return f"{focus_planet} in {planet['sign']}"
+
+
+def _astrology_calendar_body(system, snapshot, life_area):
+    planets = snapshot["planets"]
+    focus_names = _astrology_focus_planets(life_area)
+    parts = []
+    for name in focus_names:
+      planet = planets.get(name)
+      if not planet:
+          continue
+      parts.append(_planet_transit_line(system, name, planet["sign"], life_area))
+    return " ".join(parts)
+
+
+def _planet_transit_line(system, name, sign, life_area):
+    tradition = "Vedic" if system == "vedic" else "Western"
+    templates = {
+        "Moon": f"{tradition} Moon moving through {sign} shifts the emotional tone and changes how quickly feelings rise to the surface.",
+        "Mercury": f"{tradition} Mercury in {sign} emphasizes decisions, communication, and the need to think through details carefully.",
+        "Venus": f"{tradition} Venus in {sign} softens the tone around attraction, values, closeness, and what feels worth keeping.",
+        "Mars": f"{tradition} Mars in {sign} adds urgency, desire, and more direct action around the current {life_area} themes.",
+        "Jupiter": f"{tradition} Jupiter in {sign} opens room for growth, perspective, and better judgment around long-term choices.",
+        "Saturn": f"{tradition} Saturn in {sign} slows things down and asks for patience, realism, and something more sustainable.",
+        "Ketu": f"{tradition} Ketu in {sign} can make this phase feel reflective, detached, or karmically significant.",
+    }
+    return templates.get(name, f"{tradition} {name} in {sign} activates this phase.")
+
+
+def _numerology_calendar_title(snapshot, life_area):
+    if life_area == "money":
+        return f"Personal month {snapshot.get('personal_month')}"
+    if life_area == "career":
+        return f"Personal year {snapshot.get('personal_year')}"
+    return f"Cycle snapshot {snapshot['date']}"
+
+
+def _numerology_calendar_body(snapshot, life_area):
+    if life_area == "love":
+        return f"Personal month {snapshot.get('personal_month')} changes the emotional tone of connection, while personal day {snapshot.get('personal_day')} shows how quickly relationships move on that checkpoint."
+    if life_area == "career":
+        return f"Personal year {snapshot.get('personal_year')} sets the wider career lesson, and personal month {snapshot.get('personal_month')} shows how actively the current phase pushes action."
+    if life_area == "money":
+        return f"Personal month {snapshot.get('personal_month')} shapes practical financial movement, while personal day {snapshot.get('personal_day')} shows how immediate the pressure or opening feels."
+    if life_area == "family":
+        return f"Personal month {snapshot.get('personal_month')} affects closeness and domestic attention, while personal day {snapshot.get('personal_day')} shows how quickly family matters come to the front."
+    if life_area == "growth":
+        return f"Personal year {snapshot.get('personal_year')} sets the deeper growth chapter, while personal month {snapshot.get('personal_month')} shows the current developmental push."
+    return f"Personal year {snapshot.get('personal_year')} and personal month {snapshot.get('personal_month')} combine to shape the tone of this checkpoint."
 
 
 def is_request_too_large_error(error):
@@ -241,6 +393,7 @@ def extract_themes(system, data, report_type):
 
 def build_prompt(request, evidence, period, synthesis, compact=False):
     question = request.question or f"Create my {request.report_type} report."
+    focus_instruction = LIFE_AREA_GUIDANCE.get(request.life_area, LIFE_AREA_GUIDANCE["general"])
     if request.report_type == "personality":
         report_structure = """## Core Pattern
 A developed opening that names the person's central pattern in plain language,
@@ -301,6 +454,7 @@ immediate priority."""
 
 Period: {period}
 Question: {question}
+Life area focus: {focus_label(request.life_area)}. {focus_instruction}
 Use the strongest 2 to 4 themes only. Answer directly. Stay specific, readable, and non-repetitive.
 Explain what may happen, how it may feel, where it may show up, and what the person can do.
 Keep technical chart jargon mostly out of the prose. Use Markdown headings.
@@ -317,6 +471,7 @@ Evidence:
 
 Forecast period: {period}
 User question: {question}
+Life area focus: {focus_label(request.life_area)}. {focus_instruction}
 Structured synthesis briefing:
 {synthesis_text}
 
@@ -333,6 +488,8 @@ Requirements:
 - If the user question names a life area such as love, relationship, breakup,
   marriage, career, work, money, relocation, family, or timing, prioritize the
   evidence and life areas most relevant to that topic.
+- If a life area focus is provided, make that area the center of gravity for the
+  reading while staying honest about what the evidence can and cannot support.
 - If the evidence does not strongly support the requested topic, say so
   honestly and shift to the nearest supported pattern instead of forcing an
   answer.
@@ -484,6 +641,7 @@ Draft report:
     return {
         "name": request.name,
         "system": request.system,
+        "life_area": request.life_area,
         "report_type": request.report_type,
         "forecast_period": period,
         "question": request.question,
@@ -491,6 +649,9 @@ Draft report:
         "confidence": synthesis["overall_confidence"],
         "insight_map": synthesis["areas"],
         "timing_windows": synthesis["timing_windows"],
+        "transit_calendar": build_transit_calendar(
+            request.system, data, request.report_type, request.life_area
+        ),
         "themes": extract_themes(request.system, data, request.report_type),
         "evidence": evidence,
         "data": data,

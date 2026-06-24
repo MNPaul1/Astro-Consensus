@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { searchLocations } from "../../services/api";
 import BirthForm from "./Sidebar/BirthForm";
 import GenerateButton from "./Sidebar/GenerateButton";
+import LifeAreaSelector from "./Sidebar/LifeAreaSelector";
 import ReportTypeSelector from "./Sidebar/ReportTypeSelector";
 import SystemSelector from "./Sidebar/SystemSelector";
 
@@ -104,6 +105,12 @@ export default function Sidebar({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-1">
           <SystemSelector system={system} setSystem={setSystem} />
           <ReportTypeSelector reportType={reportType} setReportType={setReportType} />
+          <LifeAreaSelector
+            lifeArea={form.lifeArea}
+            setLifeArea={(value) =>
+              setForm((current) => ({ ...current, lifeArea: value }))
+            }
+          />
         </div>
 
         <BirthForm

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 ReportType = Literal["personality", "daily", "weekly", "monthly", "yearly"]
 SystemType = Literal["vedic", "western", "numerology", "consensus"]
+LifeArea = Literal["general", "love", "career", "money", "family", "growth"]
 
 
 class PersonData(BaseModel):
@@ -15,9 +16,10 @@ class PersonData(BaseModel):
     month: int = Field(ge=1, le=12)
     day: int = Field(ge=1, le=31)
     question: str = Field(default="", max_length=1000)
+    life_area: LifeArea = "general"
     report_type: ReportType
 
-    @field_validator("name", "question")
+    @field_validator("name", "question", "life_area")
     @classmethod
     def strip_text(cls, value: str) -> str:
         return value.strip()

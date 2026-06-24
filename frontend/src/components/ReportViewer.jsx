@@ -59,6 +59,29 @@ function evidenceLabel(evidenceId, evidenceMap) {
   return evidenceMap?.[evidenceId] || evidenceId;
 }
 
+function lifeAreaLabel(lifeArea) {
+  const labels = {
+    general: "General focus",
+    love: "Love and relationships",
+    career: "Career and direction",
+    money: "Money and stability",
+    family: "Family and home life",
+    growth: "Growth and inner work",
+  };
+  return labels[lifeArea] || "General focus";
+}
+
+function reportTypeLabel(reportType) {
+  const labels = {
+    personality: "overall reading",
+    daily: "daily timing",
+    weekly: "weekly timing",
+    monthly: "monthly timing",
+    yearly: "yearly timing",
+  };
+  return labels[reportType] || reportType;
+}
+
 const QUESTION_SYSTEMS = ["vedic", "western", "numerology", "consensus"];
 const QUESTION_TYPES = ["overall", "daily", "weekly", "yearly"];
 
@@ -226,6 +249,15 @@ export default function ReportViewer({ reportData, loading, loadingStatus, onQue
           <ThemePills themes={reportData.themes} />
         </div>
 
+        <section className="stage-reveal stage-reveal--4 mx-auto mb-4 flex max-w-4xl flex-wrap gap-3">
+          <div className="theme-pill rounded-full border px-4 py-2 text-sm">
+            Focus: {lifeAreaLabel(reportData.life_area)}
+          </div>
+          <div className="theme-pill rounded-full border px-4 py-2 text-sm">
+            Mode: {reportTypeLabel(reportData.report_type)}
+          </div>
+        </section>
+
         <div className="stage-reveal stage-reveal--4 info-note mx-auto mb-4 max-w-4xl rounded-xl border px-4 py-3 text-sm">
           The positions and numbers below are calculated. The written interpretation is AI-assisted and reflects traditional, non-scientific practices.
         </div>
@@ -329,6 +361,30 @@ export default function ReportViewer({ reportData, loading, loadingStatus, onQue
                       <h4 className="timeline-focus">{window.focus}</h4>
                       <p className="timeline-window">{window.window}</p>
                       <p className="timeline-confidence">{confidenceLabel(window.confidence)} confidence</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {reportData.transit_calendar?.length ? (
+              <div className="surface-card rounded-2xl border p-5">
+                <p className="insight-eyebrow">Transit calendar</p>
+                <div className="insight-header">
+                  <div>
+                    <h3 className="insight-title">How the period may unfold step by step</h3>
+                    <p className="muted-text mt-2 text-sm">
+                      This is a clean timing view centered on your selected focus, so you can see how the tone may open, build, and settle across the period.
+                    </p>
+                  </div>
+                </div>
+                <div className="timeline-grid mt-4">
+                  {reportData.transit_calendar.map((entry) => (
+                    <div key={`${entry.label}-${entry.date}`} className="timeline-card transit-card">
+                      <p className="timeline-label">{entry.label}</p>
+                      <h4 className="timeline-focus">{entry.title}</h4>
+                      <p className="timeline-window">{entry.date}</p>
+                      <p className="timeline-copy">{entry.body}</p>
                     </div>
                   ))}
                 </div>
