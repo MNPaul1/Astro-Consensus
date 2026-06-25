@@ -17,9 +17,11 @@ export default function Header({
   activeWorkspace,
   activeSystem,
   loading,
+  customAiEnabled,
   onAskQuestion,
   onOpenForecast,
   onOpenRoadmap,
+  onOpenSettings,
   onGoHome,
   onViewChart,
 }) {
@@ -168,19 +170,30 @@ export default function Header({
             >
               {formatSystemLabel(activeSystem)}
             </button>
+            <button
+              type="button"
+              onClick={onOpenSettings}
+              disabled={loading}
+              className="header-action"
+              title="Connect your own model"
+            >
+              Settings
+            </button>
             <span className="header-status hidden 2xl:inline">
-              {canAskQuestion
-                ? "Birth data ready"
-                : "Add birth details to unlock question and chart actions"}
+              {customAiEnabled
+                ? "Custom AI connected"
+                : canAskQuestion
+                  ? "Birth data ready"
+                  : "Add birth details to unlock question and chart actions"}
             </span>
           </div>
 
           <div className={`header-tools flex items-center gap-2 ${menuOpen ? "header-tools--open" : ""}`}>
             <span className="header-status xl:hidden">
-              {canAskQuestion ? "Ready" : "DOB needed"}
+              {customAiEnabled ? "Custom AI" : canAskQuestion ? "Ready" : "DOB needed"}
             </span>
             <span className="header-meta-chip hidden lg:inline-flex">
-              v1.9
+              v1.9.1
             </span>
             <button
               type="button"

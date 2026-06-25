@@ -6,6 +6,8 @@ import Sidebar from "../src/components/Sidebar";
 import ReportViewer from "../src/components/ReportViewer";
 import { calculateSystem, generateReport, getAiProgress } from "../services/api";
 
+const AI_SETTINGS_STORAGE_KEY = "astro-ai-settings";
+
 function formatDateInput(date) {
   return [
     date.getFullYear(),
@@ -59,11 +61,40 @@ function buildPayload(form, system, reportType, question) {
   return payload;
 }
 
+function loadAiSettings() {
+  try {
+    const raw = window.localStorage.getItem(AI_SETTINGS_STORAGE_KEY);
+    if (!raw) {
+      return {
+        enabled: false,
+        baseUrl: "",
+        apiKey: "",
+        model: "",
+      };
+    }
+    const parsed = JSON.parse(raw);
+    return {
+      enabled: Boolean(parsed.enabled),
+      baseUrl: parsed.baseUrl || "",
+      apiKey: parsed.apiKey || "",
+      model: parsed.model || "",
+    };
+  } catch (_error) {
+    return {
+      enabled: false,
+      baseUrl: "",
+      apiKey: "",
+      model: "",
+    };
+  }
+}
+
 export default function Home() {
   const [reportData, setReportData] = useState(null);
   const [lastReadingData, setLastReadingData] = useState(null);
   const [activeWorkspace, setActiveWorkspace] = useState("reading");
   const [roadmapOpen, setRoadmapOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [question, setQuestion] = useState("");
   const [questionOpen, setQuestionOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -85,6 +116,7 @@ export default function Home() {
     lifeArea: "general",
     forecastDate: defaultForecastDate("weekly"),
   });
+  const [aiSettings, setAiSettings] = useState(() => loadAiSettings());
   const [theme, setTheme] = useState(() => {
     const savedTheme = window.localStorage.getItem("astro-theme");
     if (savedTheme === "light" || savedTheme === "dark") {
@@ -103,19 +135,24 @@ export default function Home() {
   }, [theme]);
 
   useEffect(() => {
-    if (!roadmapOpen) {
+    window.localStorage.setItem(AI_SETTINGS_STORAGE_KEY, JSON.stringify(aiSettings));
+  }, [aiSettings]);
+
+  useEffect(() => {
+    if (!roadmapOpen && !settingsOpen) {
       return undefined;
     }
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
         setRoadmapOpen(false);
+        setSettingsOpen(false);
       }
     }
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [roadmapOpen]);
+  }, [roadmapOpen, settingsOpen]);
 
   useEffect(() => {
     setForm((current) => {
@@ -202,6 +239,14 @@ export default function Home() {
     setLoading(true);
     setFormError("");
     setReportData(null);
+    if (
+      aiSettings.enabled
+      && (!aiSettings.baseUrl.trim() || !aiSettings.apiKey.trim() || !aiSettings.model.trim())
+    ) {
+      setLoading(false);
+      setFormError("Complete your custom AI settings or switch back to the default cloud.");
+      return;
+    }
     setLoadingStatus({
       status: "running",
       stage: "Preparing your astrology reading",
@@ -214,6 +259,7 @@ export default function Home() {
       const result = await generateReport(
         buildPayload(form, nextSystem, nextReportType, nextQuestion),
         requestId,
+        aiSettings,
       );
       stopProgressPolling();
       setLoadingStatus((current) => current ? { ...current, status: "complete", stage: "Report ready" } : null);
@@ -356,9 +402,11 @@ export default function Home() {
           activeSystem={system}
           canGoHome={activeWorkspace !== "reading" || Boolean(reportData?.chart_only)}
           loading={loading}
+          customAiEnabled={aiSettings.enabled}
           onAskQuestion={handleAskQuestion}
           onOpenForecast={handleOpenForecast}
           onOpenRoadmap={() => setRoadmapOpen(true)}
+          onOpenSettings={() => setSettingsOpen(true)}
           onGoHome={handleGoHome}
           onViewChart={handleViewChart}
         />
@@ -485,6 +533,133 @@ export default function Home() {
             <p className="roadmap-modal__signature">
               Designed and developed by <strong>Mahan</strong>.
             </p>
+          </div>
+        </div>
+      ) : null}
+
+      {settingsOpen ? (
+        <div
+          className="roadmap-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="settings-title"
+          onClick={() => setSettingsOpen(false)}
+        >
+          <div
+            className="settings-modal surface-card"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="roadmap-modal__header">
+              <div>
+                <p className="roadmap-modal__eyebrow">v1.9.1 settings</p>
+                <h2 id="settings-title" className="roadmap-modal__title">
+                  Connect your own model
+                </h2>
+                <p className="roadmap-modal__copy">
+                  Use your own OpenAI-compatible model endpoint for your readings. These settings are saved only in this browser and are sent only with your own report requests.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen(false)}
+                className="roadmap-modal__close"
+                aria-label="Close settings"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="settings-modal__stack">
+              <label className="settings-field">
+                <span className="settings-field__label">Use my own model</span>
+                <div className="settings-toggle-row">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAiSettings((current) => ({ ...current, enabled: !current.enabled }))
+                    }
+                    className={`header-action ${aiSettings.enabled ? "header-action--active" : ""}`}
+                  >
+                    {aiSettings.enabled ? "Enabled" : "Disabled"}
+                  </button>
+                  <span className="muted-text text-sm">
+                    {aiSettings.enabled
+                      ? "Your requests will use your endpoint."
+                      : "Reports will use the app default cloud."}
+                  </span>
+                </div>
+              </label>
+
+              <label className="settings-field">
+                <span className="settings-field__label">Endpoint URL</span>
+                <input
+                  type="url"
+                  value={aiSettings.baseUrl}
+                  onChange={(event) =>
+                    setAiSettings((current) => ({ ...current, baseUrl: event.target.value }))
+                  }
+                  placeholder="https://api.openai.com/v1 or your provider base URL"
+                  className="input-field"
+                  autoComplete="off"
+                />
+              </label>
+
+              <label className="settings-field">
+                <span className="settings-field__label">API key</span>
+                <input
+                  type="password"
+                  value={aiSettings.apiKey}
+                  onChange={(event) =>
+                    setAiSettings((current) => ({ ...current, apiKey: event.target.value }))
+                  }
+                  placeholder="Paste your provider API key"
+                  className="input-field"
+                  autoComplete="off"
+                />
+              </label>
+
+              <label className="settings-field">
+                <span className="settings-field__label">Model name</span>
+                <input
+                  type="text"
+                  value={aiSettings.model}
+                  onChange={(event) =>
+                    setAiSettings((current) => ({ ...current, model: event.target.value }))
+                  }
+                  placeholder="gpt-4.1-mini or your provider model id"
+                  className="input-field"
+                  autoComplete="off"
+                />
+              </label>
+
+              <div className="settings-note">
+                Astro Consensus expects an OpenAI-compatible chat completions API. If you paste a base URL like `https://api.openai.com/v1`, the backend will route requests to its `/chat/completions` endpoint automatically.
+              </div>
+
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAiSettings({
+                      enabled: false,
+                      baseUrl: "",
+                      apiKey: "",
+                      model: "",
+                    })
+                  }
+                  className="header-action"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(false)}
+                  className="header-action header-action--active"
+                >
+                  Save settings
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}

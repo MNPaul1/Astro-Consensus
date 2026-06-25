@@ -1,6 +1,9 @@
 import os
 from pathlib import Path
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Optional
 
 import requests
@@ -19,6 +22,20 @@ MODEL_PRIORITY = [
 DEFAULT_MAX_COMPLETION_TOKENS = 1800
 ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
 LAST_USED_MODEL = None
+REQUEST_AI_CONFIG: ContextVar[Optional["AIRequestConfig"]] = ContextVar(
+    "request_ai_config",
+    default=None,
+)
+
+
+@dataclass(frozen=True)
+class AIRequestConfig:
+    api_url: str
+    api_key: str
+    model_order: list[str]
+    max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS
+    reasoning_effort: str = "low"
+    source_label: str = "Default cloud"
 
 
 class AIClientError(RuntimeError):
@@ -31,6 +48,15 @@ def get_last_used_model() -> Optional[str]:
 
 def load_local_env() -> None:
     load_dotenv(ENV_PATH, override=False)
+
+
+@contextmanager
+def use_request_ai_config(config: Optional["AIRequestConfig"]):
+    token = REQUEST_AI_CONFIG.set(config)
+    try:
+        yield
+    finally:
+        REQUEST_AI_CONFIG.reset(token)
 
 
 def parse_model_priority() -> list[str]:
@@ -81,6 +107,57 @@ def build_payload(model: str, messages: list[dict[str, str]]) -> dict:
     return payload
 
 
+def build_payload_for_config(
+    model: str,
+    messages: list[dict[str, str]],
+    config: "AIRequestConfig",
+) -> dict:
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.25,
+        "max_completion_tokens": config.max_completion_tokens,
+        "stream": False,
+    }
+    if model.startswith("openai/gpt-oss"):
+        payload["reasoning_effort"] = config.reasoning_effort
+    return payload
+
+
+def default_ai_config() -> "AIRequestConfig":
+    load_local_env()
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise AIClientError(
+            "GROQ_API_KEY is not set. Add it to backend/.env and restart the backend."
+        )
+
+    explicit_model = os.getenv("GROQ_MODEL", "").strip()
+    fallback_models = parse_model_priority()
+    model_order = []
+    if explicit_model:
+        model_order.append(explicit_model)
+    model_order.extend(model for model in fallback_models if model != explicit_model)
+
+    return AIRequestConfig(
+        api_url=GROQ_API_URL,
+        api_key=api_key,
+        model_order=model_order,
+        max_completion_tokens=int(
+            os.getenv("GROQ_MAX_TOKENS", str(DEFAULT_MAX_COMPLETION_TOKENS))
+        ),
+        reasoning_effort=os.getenv("GROQ_REASONING_EFFORT", "low"),
+        source_label="Default cloud",
+    )
+
+
+def current_ai_config() -> "AIRequestConfig":
+    override = REQUEST_AI_CONFIG.get()
+    if override is not None:
+        return override
+    return default_ai_config()
+
+
 def is_retryable_limit_error(status: object, message: Optional[str]) -> bool:
     normalized = (message or "").lower()
     return status in {429, 498, 499, 529} or any(
@@ -98,18 +175,18 @@ def is_retryable_limit_error(status: object, message: Optional[str]) -> bool:
 
 
 def request_model(
+    config: "AIRequestConfig",
     model: str,
     messages: list[dict[str, str]],
-    api_key: str,
 ) -> str:
-    payload = build_payload(model, messages)
+    payload = build_payload_for_config(model, messages, config)
 
     try:
         response = requests.post(
-            GROQ_API_URL,
+            config.api_url,
             json=payload,
             headers={
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": f"Bearer {config.api_key}",
                 "Content-Type": "application/json",
             },
             timeout=60,
@@ -132,22 +209,24 @@ def request_model(
         status = exc.response.status_code if exc.response is not None else "unknown"
         if is_retryable_limit_error(status, message):
             raise AIClientError(
-                f"MODEL_RETRY::{model}::{message or f'Groq request failed with status {status}.'}"
+                f"MODEL_RETRY::{model}::{message or f'AI request failed with status {status}.'}"
             ) from exc
-        raise AIClientError(message or f"Groq request failed with status {status}.") from exc
+        raise AIClientError(message or f"AI request failed with status {status}.") from exc
     except requests.RequestException as exc:
-        raise AIClientError("Could not reach Groq. Check the backend network connection.") from exc
+        raise AIClientError(
+            f"Could not reach the configured AI endpoint for {config.source_label}."
+        ) from exc
 
     try:
         data = response.json()
     except requests.JSONDecodeError as exc:
-        raise AIClientError("Groq returned invalid JSON.") from exc
+        raise AIClientError("The configured AI endpoint returned invalid JSON.") from exc
 
     try:
         choice = data["choices"][0]
         text = choice["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
-        raise AIClientError("Groq returned an unexpected response format.") from exc
+        raise AIClientError("The configured AI endpoint returned an unexpected response format.") from exc
 
     if choice.get("finish_reason") == "length":
         raise AIClientError(
@@ -169,25 +248,16 @@ def ask_ai(
     stage: Optional[str] = None,
 ) -> str:
     global LAST_USED_MODEL
-    load_local_env()
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key:
-        raise AIClientError(
-            "GROQ_API_KEY is not set. Add it to backend/.env and restart the backend."
-        )
-
+    config = current_ai_config()
     messages = build_messages(prompt, system_prompt)
-
-    explicit_model = os.getenv("GROQ_MODEL", "").strip()
-    fallback_models = parse_model_priority()
-    model_order = []
-    if explicit_model:
-        model_order.append(explicit_model)
-    model_order.extend(model for model in fallback_models if model != explicit_model)
+    model_order = config.model_order[:]
 
     if request_id and stage:
         update_stage(request_id, stage)
-    print(f"[AI] Model order for this request: {', '.join(model_order)}")
+    print(
+        f"[AI] Source: {config.source_label} | Model order for this request: "
+        f"{', '.join(model_order)}"
+    )
 
     retry_messages = []
     for model in model_order:
@@ -195,7 +265,7 @@ def ask_ai(
             if request_id:
                 log_model_attempt(request_id, model)
             print(f"[AI] Trying model: {model}")
-            response = request_model(model, messages, api_key)
+            response = request_model(config, model, messages)
             LAST_USED_MODEL = model
             if request_id:
                 log_model_result(request_id, model, "success")
@@ -219,7 +289,7 @@ def ask_ai(
     details = (
         retry_messages[-1]
         if retry_messages
-        else "All configured cloud models were unavailable."
+        else "All configured models were unavailable."
     )
     print(
         "[AI] All configured models failed "

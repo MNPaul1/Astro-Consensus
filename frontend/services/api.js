@@ -5,9 +5,25 @@ const api = axios.create({
   timeout: 90000,
 });
 
-export const generateReport = async (payload, requestId) => {
+function buildAiHeaders(requestId, aiSettings) {
+  const headers = {};
+  if (requestId) {
+    headers["X-Request-Id"] = requestId;
+  }
+
+  if (aiSettings?.enabled) {
+    headers["X-AI-Mode"] = "custom";
+    headers["X-AI-Base-Url"] = aiSettings.baseUrl?.trim();
+    headers["X-AI-Api-Key"] = aiSettings.apiKey?.trim();
+    headers["X-AI-Model"] = aiSettings.model?.trim();
+  }
+
+  return Object.keys(headers).length ? headers : undefined;
+}
+
+export const generateReport = async (payload, requestId, aiSettings) => {
   const response = await api.post("/reports", payload, {
-    headers: requestId ? { "X-Request-Id": requestId } : undefined,
+    headers: buildAiHeaders(requestId, aiSettings),
   });
   return response.data;
 };
